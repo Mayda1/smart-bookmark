@@ -37,7 +37,8 @@ const DEFAULT_CATALOG = [
     totalPages: 250,
     price: "₪49",
     cover: "/assets/time_odyssey.jpg",
-    description: "מסע מדע בדיוני מרתק אל מעבר לאופק האירועים והזמן."
+    description: "מסע מדע בדיוני מרתק אל מעבר לאופק האירועים והזמן.",
+    notes: []
   },
   {
     bookId: "BOOK_02",
@@ -46,7 +47,8 @@ const DEFAULT_CATALOG = [
     totalPages: 180,
     price: "₪39",
     cover: "/assets/forest_whispers.jpg",
-    description: "ספר פנטזיה קסום על סודות היער העתיק והאלון המדבר."
+    description: "ספר פנטזיה קסום על סודות היער העתיק והאלון המדבר.",
+    notes: []
   }
 ];
 
@@ -105,7 +107,7 @@ app.post('/api/auth/signup', (req, res) => {
     dbData.users.push(newUser);
     
     // Seed new user with first default book
-    dbData.progress[uid] = [DEFAULT_CATALOG[0]];
+    dbData.progress[uid] = [JSON.parse(JSON.stringify(DEFAULT_CATALOG[0]))];
     
     writeDB(dbData);
     return res.json({ email: newUser.email, uid, role: newUser.role });
@@ -146,12 +148,32 @@ app.get('/api/notes', (req, res) => {
     if (!userId) return res.status(400).json({ error: "userId required" });
 
     const dbData = readDB();
-    const userNotes = dbData.notes[userId] || [];
+    let allNotes = [];
+
+    // Collect notes stored directly inside user's books in progress
+    if (dbData.progress[userId]) {
+      dbData.progress[userId].forEach(book => {
+        if (Array.isArray(book.notes)) {
+          allNotes.push(...book.notes);
+        }
+      });
+    }
+
+    // Also include standalone notes
+    if (dbData.notes[userId]) {
+      allNotes.push(...dbData.notes[userId]);
+    }
+
+    // Deduplicate by noteId
+    const uniqueNotesMap = new Map();
+    allNotes.forEach(n => uniqueNotesMap.set(n.noteId, n));
+    let uniqueNotes = Array.from(uniqueNotesMap.values());
 
     if (bookId) {
-      return res.json(userNotes.filter(n => n.bookId === bookId));
+      uniqueNotes = uniqueNotes.filter(n => n.bookId === bookId);
     }
-    return res.json(userNotes);
+    
+    return res.json(uniqueNotes);
   } catch (err) {
     return res.status(500).json({ error: "שגיאה בשליפת ההערות" });
   }
@@ -178,7 +200,20 @@ app.post('/api/notes', (req, res) => {
       createdAt: new Date().toISOString()
     };
 
-    dbData.notes[userId].unshift(newNote); // newest first
+    // Save in standalone notes array
+    dbData.notes[userId].unshift(newNote);
+
+    // ALSO save directly inside user's book in dbData.progress[userId]
+    if (dbData.progress[userId]) {
+      dbData.progress[userId] = dbData.progress[userId].map(book => {
+        if (book.bookId === bookId) {
+          const currentNotes = Array.isArray(book.notes) ? book.notes : [];
+          return { ...book, notes: [newNote, ...currentNotes] };
+        }
+        return book;
+      });
+    }
+
     writeDB(dbData);
     return res.json(newNote);
   } catch (err) {
@@ -196,8 +231,18 @@ app.delete('/api/notes/:noteId', (req, res) => {
     const dbData = readDB();
     if (dbData.notes[userId]) {
       dbData.notes[userId] = dbData.notes[userId].filter(n => n.noteId !== noteId);
-      writeDB(dbData);
     }
+
+    if (dbData.progress[userId]) {
+      dbData.progress[userId] = dbData.progress[userId].map(book => {
+        if (Array.isArray(book.notes)) {
+          return { ...book, notes: book.notes.filter(n => n.noteId !== noteId) };
+        }
+        return book;
+      });
+    }
+
+    writeDB(dbData);
     return res.json({ success: true, noteId });
   } catch (err) {
     return res.status(500).json({ error: "שגיאה במחיקת ההערה" });
@@ -260,7 +305,8 @@ app.post('/api/catalog', (req, res) => {
       totalPages: parseInt(totalPages),
       price: price || "₪49",
       cover: cover || "/assets/placeholder_cover.png",
-      description: description || "ספר חדש בקטלוג החברה."
+      description: description || "ספר חדש בקטלוג החברה.",
+      notes: []
     };
 
     dbData.catalog.push(newBook);
@@ -296,7 +342,8 @@ app.post('/api/user/purchase', (req, res) => {
 
     const purchasedBook = {
       ...catalogBook,
-      currentPage: 1
+      currentPage: 1,
+      notes: []
     };
 
     dbData.progress[userId].push(purchasedBook);
@@ -318,7 +365,7 @@ app.get('/api/books', (req, res) => {
     const dbData = readDB();
     
     if (!dbData.progress[userId]) {
-      dbData.progress[userId] = [dbData.catalog[0]];
+      dbData.progress[userId] = [JSON.parse(JSON.stringify(DEFAULT_CATALOG[0]))];
       writeDB(dbData);
     }
 
@@ -381,7 +428,7 @@ app.post('/api/update-progress', (req, res) => {
     }
     
     if (!dbData.progress[userId]) {
-      dbData.progress[userId] = [dbData.catalog[0]];
+      dbData.progress[userId] = [JSON.parse(JSON.stringify(DEFAULT_CATALOG[0]))];
     }
 
     let bookFound = false;
