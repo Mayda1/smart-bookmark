@@ -52,31 +52,44 @@ const DEFAULT_CATALOG = [
   }
 ];
 
+// Global in-memory cache across serverless warm invocations
+if (!global.memoryDB) {
+  global.memoryDB = null;
+}
+
 // List of Admin email addresses
 const ADMIN_EMAILS = ["mayda2604@gmail.com", "admin@smartbookmark.com"];
 
-// Helper to read database safely
+// Helper to read database safely with global memory caching
 function readDB() {
+  if (global.memoryDB) {
+    return global.memoryDB;
+  }
   try {
     if (fs.existsSync(DB_PATH)) {
       const data = fs.readFileSync(DB_PATH, 'utf-8');
       const parsed = JSON.parse(data);
-      return {
+      const db = {
         users: Array.isArray(parsed.users) ? parsed.users : [],
         progress: parsed.progress || {},
         devices: parsed.devices || {},
         catalog: Array.isArray(parsed.catalog) && parsed.catalog.length > 0 ? parsed.catalog : DEFAULT_CATALOG,
         notes: parsed.notes || {}
       };
+      global.memoryDB = db;
+      return db;
     }
   } catch (err) {
     console.error("Error reading database:", err);
   }
-  return { users: [], progress: {}, devices: {}, catalog: DEFAULT_CATALOG, notes: {} };
+  const initial = { users: [], progress: {}, devices: {}, catalog: DEFAULT_CATALOG, notes: {} };
+  global.memoryDB = initial;
+  return initial;
 }
 
 // Helper to write database safely
 function writeDB(data) {
+  global.memoryDB = data;
   try {
     fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
   } catch (err) {
@@ -273,7 +286,7 @@ app.get('/api/admin/db', (req, res) => {
   }
 });
 
-// 7. Get Global Books Catalog (For Bookstore)
+// 7. Get Global Books Catalog
 app.get('/api/catalog', (req, res) => {
   try {
     const dbData = readDB();
