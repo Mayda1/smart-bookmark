@@ -1,7 +1,48 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
 import { getUserBooks, updateBookProgress, getUserNotes, addNote, deleteNote } from "../dbHelper";
 import { translations } from "../translations";
+
+// Subtle marker highlight style
+const HIGHLIGHT_STYLE = {
+  backgroundColor: 'rgba(232, 210, 160, 0.35)',
+  borderRadius: '2px',
+  padding: '1px 0',
+  transition: 'background-color 0.3s ease'
+};
+
+// Takes a text string and array of saved quotes for this page,
+// returns React elements with matching fragments wrapped in <mark>
+function highlightText(text, savedQuotes) {
+  if (!savedQuotes || savedQuotes.length === 0 || !text) return text;
+
+  // Collect all quote strings for this page (non-empty)
+  const quoteStrings = savedQuotes
+    .map(n => n.quote)
+    .filter(q => q && q.trim().length > 3);
+
+  if (quoteStrings.length === 0) return text;
+
+  // Escape regex special chars and build a combined pattern
+  const escaped = quoteStrings.map(q =>
+    q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  );
+  // Sort longest first so longer matches take priority
+  escaped.sort((a, b) => b.length - a.length);
+
+  const pattern = new RegExp(`(${escaped.join('|')})`, 'g');
+  const parts = text.split(pattern);
+
+  if (parts.length === 1) return text; // No matches
+
+  return parts.map((part, i) => {
+    const isMatch = quoteStrings.some(q => part === q);
+    if (isMatch) {
+      return <mark key={i} style={HIGHLIGHT_STYLE}>{part}</mark>;
+    }
+    return part;
+  });
+}
 
 // Reader component - Single Back button at top header only
 export default function Reader({ bookId, initialPage, startPage, onBack, onClose, showToast }) {
@@ -255,36 +296,40 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
                 fontFamily: fontFamily === "serif" ? "Lora, Georgia, serif" : "Assistant, sans-serif"
               }}
             >
+              {(() => {
+                const pageNotes = notes.filter(n => n.page === currentPage);
+                return null;
+              })()}
               {currentPage === 1 ? (
                 <div>
                   <h3 style={{ marginBottom: "1.5rem", fontFamily: "Lora, serif", fontSize: "1.8rem", textAlign: "center" }}>פרק ראשון</h3>
                   <p style={{ marginBottom: "1rem" }}>
-                    "הזמן איננו קו ישר," אמר הפרופסור והביט אל החלון הגדול שפנה לעבר העמק. "הוא דומה יותר לדפים בספר. כשאתה נמצא בעמוד 45, עמוד 1 עדיין קיים ועמוד 250 כבר מחכה לך במקומו."
+                    {highlightText("\"הזמן איננו קו ישר,\" אמר הפרופסור והביט אל החלון הגדול שפנה לעבר העמק. \"הוא דומה יותר לדפים בספר. כשאתה נמצא בעמוד 45, עמוד 1 עדיין קיים ועמוד 250 כבר מחכה לך במקומו.\"", notes.filter(n => n.page === 1))}
                   </p>
                   <p>
-                    הרוח מחוץ לבניין לחשה דרך העצים. השעון על הקיר תקתק בקצב אטי וקצוב, כאילו מזכיר לכל הנוכחים בחדר כי כל מילה שנאמרת נחרתת בתוך דברי הימים של הזיכרון.
+                    {highlightText("הרוח מחוץ לבניין לחשה דרך העצים. השעון על הקיר תקתק בקצב אטי וקצוב, כאילו מזכיר לכל הנוכחים בחדר כי כל מילה שנאמרת נחרתת בתוך דברי הימים של הזיכרון.", notes.filter(n => n.page === 1))}
                   </p>
                 </div>
               ) : currentPage === 2 ? (
                 <div>
                   <h3 style={{ marginBottom: "1.5rem", fontFamily: "Lora, serif", fontSize: "1.8rem", textAlign: "center" }}>פרק שני</h3>
                   <p style={{ marginBottom: "1rem" }}>
-                    המסע במעלה ההר החל בשעות הבוקר המוקדמות. הערפל הכבד שכיסה את העמק החל להתפוגג לאט, כשהוא חושף את שבילי האבן העתיקים שנסללו לפני מאות שנים.
+                    {highlightText("המסע במעלה ההר החל בשעות הבוקר המוקדמות. הערפל הכבד שכיסה את העמק החל להתפוגג לאט, כשהוא חושף את שבילי האבן העתיקים שנסללו לפני מאות שנים.", notes.filter(n => n.page === 2))}
                   </p>
                   <p>
-                    "כל צעד שאנחנו עושים מקרב אותנו אל הפסגה," אמרה אליסה בלחש. "אבל היופי האמיתי הוא לא ההגעה, אלא הדרך שבה אנחנו מתבוננים בנוף מסביב."
+                    {highlightText("\"כל צעד שאנחנו עושים מקרב אותנו אל הפסגה,\" אמרה אליסה בלחש. \"אבל היופי האמיתי הוא לא ההגעה, אלא הדרך שבה אנחנו מתבוננים בנוף מסביב.\"", notes.filter(n => n.page === 2))}
                   </p>
                 </div>
               ) : (
                 <div>
                   <p style={{ marginBottom: "1rem" }}>
-                    את נמצאת כעת ב<strong>עמוד {currentPage}</strong> מתוך {book.totalPages}.
+                    {highlightText(`את נמצאת כעת בעמוד ${currentPage} מתוך ${book.totalPages}.`, notes.filter(n => n.page === currentPage))}
                   </p>
                   <p style={{ marginBottom: "1rem" }}>
-                    הסימנייה החכמה שלך מסנכרנת אוטומטית את התקדמות הקריאה בענן. בכל פעם שתשני עמוד בסימנייה הפיזית ותלחצי על "Save", העמוד יתעדכן כאן באופן מיידי.
+                    {highlightText("הסימנייה החכמה שלך מסנכרנת אוטומטית את התקדמות הקריאה בענן. בכל פעם שתשני עמוד בסימנייה הפיזית ותלחצי על \"Save\", העמוד יתעדכן כאן באופן מיידי.", notes.filter(n => n.page === currentPage))}
                   </p>
                   <blockquote style={{ borderRight: "3px solid var(--accent-sand)", paddingRight: "1rem", fontStyle: "italic", margin: "1.5rem 0", color: "var(--text-secondary)" }}>
-                    "ספר טוב איננו מסתיים כשסוגרים את הכריכה; הוא ממשיך לחיות במחשבות של הקורא."
+                    {highlightText("\"ספר טוב איננו מסתיים כשסוגרים את הכריכה; הוא ממשיך לחיות במחשבות של הקורא.\"", notes.filter(n => n.page === currentPage))}
                   </blockquote>
                 </div>
               )}
