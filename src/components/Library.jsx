@@ -7,33 +7,38 @@ import {
   purchaseBook, 
   linkBookmarkDevice, 
   getUserDevices,
-  getAdminDatabase
+  getAdminDatabase,
+  getUserNotes,
+  addNote,
+  deleteNote
 } from "../dbHelper";
 import { translations } from "../translations";
 import { useNavigate } from "react-router-dom";
 
 export default function Library({ onOpenBook, showToast }) {
   const { currentUser, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState("library"); // 'library', 'store', or 'admin_db'
+  const [activeTab, setActiveTab] = useState("library"); // 'library', 'store', 'journal', or 'admin_db'
   const [books, setBooks] = useState([]);
   const [catalog, setCatalog] = useState([]);
   const [linkedDevices, setLinkedDevices] = useState([]);
+  const [notes, setNotes] = useState([]);
   const [adminDbData, setAdminDbData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAdminForm, setShowAdminForm] = useState(false);
   const [showDeviceModal, setShowDeviceModal] = useState(false);
+  const [showNoteForm, setShowNoteForm] = useState(false);
 
-  // Language state: 'he' or 'en'
+  // Language state
   const [lang, setLang] = useState(() => localStorage.getItem("app_lang") || "he");
   const t = translations[lang];
 
-  // Admin view toggle: 'admin' or 'user' (allows admin to preview site as regular user)
+  // Admin view toggle
   const [adminViewMode, setAdminViewMode] = useState("admin");
 
   const isActualAdmin = currentUser.email.toLowerCase() === "mayda2604@gmail.com" || currentUser.role === "admin";
   const showAdminControls = isActualAdmin && adminViewMode === "admin";
 
-  // Admin Add Book Form state
+  // Form states
   const [newTitle, setNewTitle] = useState("");
   const [newAuthor, setNewAuthor] = useState("");
   const [newTotalPages, setNewTotalPages] = useState("");
@@ -42,31 +47,38 @@ export default function Library({ onOpenBook, showToast }) {
   const [newDescription, setNewDescription] = useState("");
   const [addLoading, setAddLoading] = useState(false);
 
-  // Link Device State
+  const [noteBookId, setNoteBookId] = useState("");
+  const [newQuote, setNewQuote] = useState("");
+  const [newNoteText, setNewNoteText] = useState("");
+  const [newNotePage, setNewNotePage] = useState("1");
+  const [noteSaving, setNoteSaving] = useState(false);
+
   const [deviceIdInput, setDeviceIdInput] = useState("");
   const [deviceLoading, setDeviceLoading] = useState(false);
 
   const navigate = useNavigate();
 
-  // Apply language direction to document root
   useEffect(() => {
     document.documentElement.dir = lang === "he" ? "rtl" : "ltr";
     document.documentElement.lang = lang;
     localStorage.setItem("app_lang", lang);
   }, [lang]);
 
-  // Load books and catalog
+  // Load books, catalog, notes
   async function loadData(showNotification = false) {
     try {
       if (showNotification) setLoading(true);
-      const [booksData, catalogData, devicesData] = await Promise.all([
+      const [booksData, catalogData, devicesData, notesData] = await Promise.all([
         getUserBooks(currentUser.uid),
         getCatalog(),
-        getUserDevices(currentUser.uid)
+        getUserDevices(currentUser.uid),
+        getUserNotes(currentUser.uid)
       ]);
       setBooks(booksData);
       setCatalog(catalogData);
       setLinkedDevices(devicesData);
+      setNotes(notesData);
+      if (booksData.length > 0) setNoteBookId(booksData[0].bookId);
 
       if (isActualAdmin) {
         const dbData = await getAdminDatabase(currentUser.email);
@@ -74,7 +86,7 @@ export default function Library({ onOpenBook, showToast }) {
       }
 
       if (showNotification) {
-        showToast(lang === "he" ? "הנתונים עודכנו בהצלחה" : "Library refreshed", "success");
+        showToast(lang === "he" ? "הנתונים עודכנו בהצלחה" : "Refreshed successfully", "success");
       }
     } catch (err) {
       showToast(lang === "he" ? "שגיאה בטעינת הנתונים מהשרת" : "Error loading data", "error");
@@ -87,7 +99,6 @@ export default function Library({ onOpenBook, showToast }) {
     loadData(false);
   }, [currentUser]);
 
-  // Toggle Admin View Mode
   function toggleAdminViewMode() {
     if (adminViewMode === "admin") {
       setAdminViewMode("user");
@@ -99,7 +110,6 @@ export default function Library({ onOpenBook, showToast }) {
     }
   }
 
-  // Log out handler
   async function handleLogout() {
     try {
       await logout();
@@ -109,7 +119,6 @@ export default function Library({ onOpenBook, showToast }) {
     }
   }
 
-  // Admin: Add book to global catalog
   async function handleAddCatalogBook(e) {
     e.preventDefault();
     if (!newTitle || !newAuthor || !newTotalPages) return;
@@ -140,7 +149,6 @@ export default function Library({ onOpenBook, showToast }) {
     }
   }
 
-  // User: Purchase / Claim book from store to personal library
   async function handlePurchaseBook(bookId, bookTitle) {
     try {
       const added = await purchaseBook(currentUser.uid, bookId);
@@ -153,7 +161,43 @@ export default function Library({ onOpenBook, showToast }) {
     }
   }
 
-  // Link device handler
+  async function handleAddNoteFromJournal(e) {
+    e.preventDefault();
+    if (!newQuote.trim() && !newNoteText.trim()) return;
+
+    const targetBook = books.find(b => b.bookId === noteBookId) || { title: "ספר" };
+
+    try {
+      setNoteSaving(true);
+      const added = await addNote(currentUser.uid, {
+        bookId: noteBookId || (books[0] ? books[0].bookId : "BOOK_01"),
+        bookTitle: targetBook.title,
+        page: newNotePage,
+        quote: newQuote,
+        note: newNoteText
+      });
+      setNotes(prev => [added, ...prev]);
+      setNewQuote("");
+      setNewNoteText("");
+      setShowNoteForm(false);
+      showToast(lang === "he" ? "ההערה נשמרה במחברת שלך!" : "Note saved to your journal!", "success");
+    } catch (err) {
+      showToast(err.message || "Error saving note", "error");
+    } finally {
+      setNoteSaving(false);
+    }
+  }
+
+  async function handleDeleteNote(noteId) {
+    try {
+      await deleteNote(currentUser.uid, noteId);
+      setNotes(prev => prev.filter(n => n.noteId !== noteId));
+      showToast(lang === "he" ? "ההערה נמחקה" : "Note deleted", "info");
+    } catch (err) {
+      showToast("Error deleting note", "error");
+    }
+  }
+
   async function handleLinkDevice(e) {
     e.preventDefault();
     if (!deviceIdInput.trim()) return;
@@ -173,7 +217,6 @@ export default function Library({ onOpenBook, showToast }) {
     }
   }
 
-  // Map UID to User Email for Admin DB display
   function getUserEmailByUid(uid) {
     if (!adminDbData || !adminDbData.users) return uid;
     const u = adminDbData.users.find(user => user.uid === uid);
@@ -182,7 +225,7 @@ export default function Library({ onOpenBook, showToast }) {
 
   return (
     <div className="library-container">
-      {/* Main Clean Header */}
+      {/* Header */}
       <div className="main-header" style={{ marginTop: 0 }}>
         <div className="logo-area">
           <span className="icon">📖</span>
@@ -190,20 +233,9 @@ export default function Library({ onOpenBook, showToast }) {
         </div>
         
         <div className="connection-panel">
-          {/* Segmented Language Control UX */}
           <div className="lang-switcher-segmented">
-            <button 
-              onClick={() => setLang("he")} 
-              className={`lang-btn ${lang === "he" ? "active" : ""}`}
-            >
-              עברית
-            </button>
-            <button 
-              onClick={() => setLang("en")} 
-              className={`lang-btn ${lang === "en" ? "active" : ""}`}
-            >
-              EN
-            </button>
+            <button onClick={() => setLang("he")} className={`lang-btn ${lang === "he" ? "active" : ""}`}>עברית</button>
+            <button onClick={() => setLang("en")} className={`lang-btn ${lang === "en" ? "active" : ""}`}>EN</button>
           </div>
 
           <button onClick={() => setShowDeviceModal(true)} className="btn btn-secondary">
@@ -235,12 +267,8 @@ export default function Library({ onOpenBook, showToast }) {
         </div>
 
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          {/* Admin Toggle View Button */}
           {isActualAdmin && (
-            <button 
-              onClick={toggleAdminViewMode} 
-              className="btn btn-secondary btn-small"
-            >
+            <button onClick={toggleAdminViewMode} className="btn btn-secondary btn-small">
               {adminViewMode === "admin" ? t.viewAsUser : t.viewAsAdmin}
             </button>
           )}
@@ -249,7 +277,7 @@ export default function Library({ onOpenBook, showToast }) {
         </div>
       </div>
 
-      {/* Elegant Underline Tabs */}
+      {/* Tabs */}
       <div className="tabs-nav">
         <button 
           onClick={() => setActiveTab("library")} 
@@ -263,6 +291,12 @@ export default function Library({ onOpenBook, showToast }) {
         >
           🛒 {t.bookstore} ({catalog.length})
         </button>
+        <button 
+          onClick={() => setActiveTab("journal")} 
+          className={`tab-btn ${activeTab === "journal" ? "active" : ""}`}
+        >
+          {t.myJournal} ({notes.length})
+        </button>
         {showAdminControls && (
           <button 
             onClick={() => setActiveTab("admin_db")} 
@@ -273,23 +307,15 @@ export default function Library({ onOpenBook, showToast }) {
         )}
       </div>
 
-      {/* Device Linking Modal */}
+      {/* Device Modal */}
       {showDeviceModal && (
         <div className="add-book-form">
           <h3 style={{ fontFamily: 'var(--font-serif)', marginBottom: '0.5rem' }}>{t.linkDeviceModalTitle}</h3>
-          <p className="section-desc" style={{ fontSize: '0.9rem', marginBottom: '1rem' }}>
-            {t.linkDeviceDesc}
-          </p>
+          <p className="section-desc" style={{ fontSize: '0.9rem', marginBottom: '1rem' }}>{t.linkDeviceDesc}</p>
           <form onSubmit={handleLinkDevice} className="form-row">
             <div className="form-group" style={{ flex: 2 }}>
               <label>{t.deviceId}</label>
-              <input 
-                type="text" 
-                value={deviceIdInput} 
-                onChange={(e) => setDeviceIdInput(e.target.value)} 
-                required 
-                placeholder="BOOKMARK_01 / AA:BB:CC:11:22:33"
-              />
+              <input type="text" value={deviceIdInput} onChange={(e) => setDeviceIdInput(e.target.value)} required placeholder="BOOKMARK_01 / AA:BB:CC:11:22:33" />
             </div>
             <div className="form-group" style={{ flex: 1, justifyContent: 'flex-end' }}>
               <button disabled={deviceLoading} type="submit" className="btn btn-primary" style={{ marginTop: '1.4rem' }}>
@@ -300,14 +326,10 @@ export default function Library({ onOpenBook, showToast }) {
         </div>
       )}
 
-      {/* Admin Add Book Form Section */}
+      {/* Admin Add Book */}
       {showAdminControls && activeTab === "store" && (
         <div style={{ marginBottom: "1.75rem" }}>
-          <button 
-            onClick={() => setShowAdminForm(!showAdminForm)} 
-            className="btn btn-secondary"
-            style={{ width: "100%", marginBottom: "1rem" }}
-          >
+          <button onClick={() => setShowAdminForm(!showAdminForm)} className="btn btn-secondary" style={{ width: "100%", marginBottom: "1rem" }}>
             {showAdminForm ? t.closeForm : t.adminAddBookBtn}
           </button>
 
@@ -317,51 +339,25 @@ export default function Library({ onOpenBook, showToast }) {
               <div className="form-row">
                 <div className="form-group">
                   <label>{t.bookTitle}</label>
-                  <input 
-                    type="text" 
-                    value={newTitle} 
-                    onChange={(e) => setNewTitle(e.target.value)} 
-                    required 
-                  />
+                  <input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} required />
                 </div>
                 <div className="form-group">
                   <label>{t.author}</label>
-                  <input 
-                    type="text" 
-                    value={newAuthor} 
-                    onChange={(e) => setNewAuthor(e.target.value)} 
-                    required 
-                  />
+                  <input type="text" value={newAuthor} onChange={(e) => setNewAuthor(e.target.value)} required />
                 </div>
                 <div className="form-group">
                   <label>{t.totalPages}</label>
-                  <input 
-                    type="number" 
-                    min="1"
-                    value={newTotalPages} 
-                    onChange={(e) => setNewTotalPages(e.target.value)} 
-                    required 
-                  />
+                  <input type="number" min="1" value={newTotalPages} onChange={(e) => setNewTotalPages(e.target.value)} required />
                 </div>
               </div>
               <div className="form-row">
                 <div className="form-group">
                   <label>{t.price}</label>
-                  <input 
-                    type="text" 
-                    value={newPrice} 
-                    onChange={(e) => setNewPrice(e.target.value)} 
-                    placeholder="₪49"
-                  />
+                  <input type="text" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} placeholder="₪49" />
                 </div>
                 <div className="form-group" style={{ flex: 2 }}>
                   <label>{t.coverUrl}</label>
-                  <input 
-                    type="text" 
-                    value={newCover} 
-                    onChange={(e) => setNewCover(e.target.value)} 
-                    placeholder="/assets/time_odyssey.jpg"
-                  />
+                  <input type="text" value={newCover} onChange={(e) => setNewCover(e.target.value)} placeholder="/assets/time_odyssey.jpg" />
                 </div>
               </div>
               <button disabled={addLoading} type="submit" className="btn btn-primary">
@@ -372,9 +368,8 @@ export default function Library({ onOpenBook, showToast }) {
         </div>
       )}
 
-      {/* Main Content Area */}
+      {/* Main Views */}
       {activeTab === "library" ? (
-        /* MY LIBRARY VIEW */
         <section className="section library-section">
           <div className="section-header">
             <h2>{t.myLibrary}</h2>
@@ -426,7 +421,6 @@ export default function Library({ onOpenBook, showToast }) {
           )}
         </section>
       ) : activeTab === "store" ? (
-        /* BOOKSTORE / CATALOG VIEW */
         <section className="section library-section">
           <div className="section-header">
             <h2>{t.storeTitle}</h2>
@@ -457,10 +451,7 @@ export default function Library({ onOpenBook, showToast }) {
                         {isOwned ? (
                           <span className="badge badge-linked">{t.alreadyOwned}</span>
                         ) : (
-                          <button 
-                            onClick={() => handlePurchaseBook(book.bookId, book.title)} 
-                            className="btn btn-primary btn-small"
-                          >
+                          <button onClick={() => handlePurchaseBook(book.bookId, book.title)} className="btn btn-primary btn-small">
                             {t.buyBook}
                           </button>
                         )}
@@ -469,6 +460,140 @@ export default function Library({ onOpenBook, showToast }) {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </section>
+      ) : activeTab === "journal" ? (
+        /* MY READING JOURNAL TAB */
+        <section className="section library-section">
+          <div className="section-header-flex">
+            <div className="section-header" style={{ marginBottom: 0 }}>
+              <h2>{t.notesTitle}</h2>
+              <p className="section-desc">{t.notesDesc}</p>
+            </div>
+            <button onClick={() => setShowNoteForm(!showNoteForm)} className="btn btn-primary">
+              {showNoteForm ? t.closeForm : t.addNoteBtn}
+            </button>
+          </div>
+
+          {/* Add Note Form */}
+          {showNoteForm && (
+            <form onSubmit={handleAddNoteFromJournal} className="add-book-form" style={{ marginTop: '1.5rem' }}>
+              <h3 style={{ fontFamily: 'var(--font-serif)', marginBottom: '1rem' }}>{t.addNoteBtn}</h3>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>ספר</label>
+                  <select 
+                    value={noteBookId} 
+                    onChange={(e) => setNoteBookId(e.target.value)}
+                    style={{
+                      background: "#fdfdfc",
+                      border: "1px solid var(--border-subtle)",
+                      borderRadius: "8px",
+                      padding: "0.75rem",
+                      fontFamily: "var(--font-sans)",
+                      fontSize: "0.95rem"
+                    }}
+                  >
+                    {books.map(b => (
+                      <option key={b.bookId} value={b.bookId}>{b.title}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group" style={{ maxWidth: '120px' }}>
+                  <label>{t.pageLabel}</label>
+                  <input 
+                    type="number" 
+                    min="1" 
+                    value={newNotePage} 
+                    onChange={(e) => setNewNotePage(e.target.value)} 
+                  />
+                </div>
+              </div>
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label>💬 {t.quoteInput}</label>
+                <input type="text" value={newQuote} onChange={(e) => setNewQuote(e.target.value)} placeholder='לדוגמה: "הזמן איננו קו ישר..."' />
+              </div>
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label>💡 {t.noteInput}</label>
+                <textarea 
+                  value={newNoteText} 
+                  onChange={(e) => setNewNoteText(e.target.value)} 
+                  rows="3"
+                  style={{
+                    background: "#fdfdfc",
+                    border: "1px solid var(--border-subtle)",
+                    borderRadius: "8px",
+                    padding: "0.75rem",
+                    fontFamily: "var(--font-sans)",
+                    fontSize: "0.95rem"
+                  }}
+                  placeholder="לדוגמה: מחשבה אישית שלמדתי מהעמוד..."
+                />
+              </div>
+              <button disabled={noteSaving} type="submit" className="btn btn-primary">
+                {noteSaving ? "..." : t.saveNoteBtn}
+              </button>
+            </form>
+          )}
+
+          {/* Notes Cards Grid */}
+          {notes.length === 0 ? (
+            <div className="empty-library-state" style={{ marginTop: '1.5rem' }}>
+              <p>{t.emptyNotes}</p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem', marginTop: '1.5rem' }}>
+              {notes.map(n => (
+                <div 
+                  key={n.noteId} 
+                  style={{
+                    background: 'var(--surface-card)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: '14px',
+                    padding: '1.35rem',
+                    boxShadow: 'var(--shadow-sm)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between'
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--primary-slate)' }}>
+                        {n.bookTitle}
+                      </span>
+                      <span className="badge badge-admin">
+                        {t.pageTag} {n.page}
+                      </span>
+                    </div>
+
+                    {n.quote && (
+                      <p style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', color: 'var(--primary-slate)', fontSize: '1.05rem', marginBottom: '0.6rem', lineHeight: '1.5' }}>
+                        “{n.quote}”
+                      </p>
+                    )}
+
+                    {n.note && (
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
+                        💡 {n.note}
+                      </p>
+                    )}
+                  </div>
+
+                  <div style={{ marginTop: '1rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                      {new Date(n.createdAt).toLocaleDateString()}
+                    </span>
+                    <button 
+                      onClick={() => handleDeleteNote(n.noteId)} 
+                      style={{ background: 'transparent', border: 'none', color: 'var(--error)', cursor: 'pointer', fontSize: '0.85rem' }}
+                    >
+                      {t.deleteBtn} 🗑️
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </section>
@@ -484,8 +609,6 @@ export default function Library({ onOpenBook, showToast }) {
             <div className="loading-spinner">... ⏳</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
-              
-              {/* 1. REGISTERED USERS TABLE */}
               <div className="add-book-form">
                 <h3 style={{ fontFamily: 'var(--font-serif)', marginBottom: '1rem', color: 'var(--primary-slate)' }}>{t.registeredUsers} ({adminDbData.users.length})</h3>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: lang === 'he' ? 'right' : 'left' }}>
@@ -511,70 +634,6 @@ export default function Library({ onOpenBook, showToast }) {
                   </tbody>
                 </table>
               </div>
-
-              {/* 2. USER BOOKS & READING PROGRESS TABLE */}
-              <div className="add-book-form">
-                <h3 style={{ fontFamily: 'var(--font-serif)', marginBottom: '1rem', color: 'var(--primary-slate)' }}>{t.userProgressTitle}</h3>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: lang === 'he' ? 'right' : 'left' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
-                      <th style={{ padding: '0.65rem' }}>{t.email}</th>
-                      <th style={{ padding: '0.65rem' }}>{t.bookTitle}</th>
-                      <th style={{ padding: '0.65rem' }}>{t.author}</th>
-                      <th style={{ padding: '0.65rem' }}>{t.currentPage}</th>
-                      <th style={{ padding: '0.65rem' }}>{t.totalPages}</th>
-                      <th style={{ padding: '0.65rem' }}>{t.completionPct}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(adminDbData.progress).flatMap(([uid, userBooks]) => 
-                      userBooks.map(b => {
-                        const pct = Math.round(((b.currentPage || 1) / b.totalPages) * 100);
-                        return (
-                          <tr key={uid + "_" + b.bookId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                            <td style={{ padding: '0.65rem', fontWeight: '600' }}>{getUserEmailByUid(uid)}</td>
-                            <td style={{ padding: '0.65rem' }}>{b.title}</td>
-                            <td style={{ padding: '0.65rem' }}>{b.author}</td>
-                            <td style={{ padding: '0.65rem', fontWeight: '700', color: 'var(--accent-sand)' }}>{b.currentPage || 1}</td>
-                            <td style={{ padding: '0.65rem' }}>{b.totalPages}</td>
-                            <td style={{ padding: '0.65rem' }}>
-                              <span className="badge badge-admin">
-                                {pct}%
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* 3. LINKED DEVICES TABLE */}
-              <div className="add-book-form">
-                <h3 style={{ fontFamily: 'var(--font-serif)', marginBottom: '1rem', color: 'var(--primary-slate)' }}>{t.linkedDevicesTitle} ({Object.keys(adminDbData.devices).length})</h3>
-                {Object.keys(adminDbData.devices).length === 0 ? (
-                  <p style={{ color: 'var(--text-secondary)' }}>No devices linked yet.</p>
-                ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: lang === 'he' ? 'right' : 'left' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '2px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
-                        <th style={{ padding: '0.65rem' }}>{t.deviceId}</th>
-                        <th style={{ padding: '0.65rem' }}>{t.belongsTo}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Object.entries(adminDbData.devices).map(([devId, uid]) => (
-                        <tr key={devId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                          <td style={{ padding: '0.65rem', fontFamily: 'monospace', fontWeight: '700' }}>{devId}</td>
-                          <td style={{ padding: '0.65rem' }}>{getUserEmailByUid(uid)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-
             </div>
           )}
         </section>

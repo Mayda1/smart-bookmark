@@ -7,7 +7,47 @@ async function parseResponse(response) {
   throw new Error(text || "שגיאת תקשורת עם השרת");
 }
 
-// 1. Admin: Get full raw database (Users, Books per User, Linked Devices)
+// 1. Get user notes & highlights
+export async function getUserNotes(userId, bookId = "") {
+  const url = bookId 
+    ? `/api/notes?userId=${encodeURIComponent(userId)}&bookId=${encodeURIComponent(bookId)}`
+    : `/api/notes?userId=${encodeURIComponent(userId)}`;
+  const response = await fetch(url);
+  const data = await parseResponse(response);
+  if (!response.ok) throw new Error(data.error || "שגיאה בשליפת ההערות");
+  return data;
+}
+
+// 2. Add a new note/quote
+export async function addNote(userId, noteData) {
+  const response = await fetch("/api/notes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      userId,
+      bookId: noteData.bookId,
+      bookTitle: noteData.bookTitle,
+      page: noteData.page,
+      quote: noteData.quote,
+      note: noteData.note
+    })
+  });
+  const data = await parseResponse(response);
+  if (!response.ok) throw new Error(data.error || "שגיאה בשמירת ההערה");
+  return data;
+}
+
+// 3. Delete a note
+export async function deleteNote(userId, noteId) {
+  const response = await fetch(`/api/notes/${encodeURIComponent(noteId)}?userId=${encodeURIComponent(userId)}`, {
+    method: "DELETE"
+  });
+  const data = await parseResponse(response);
+  if (!response.ok) throw new Error(data.error || "שגיאה במחיקת ההערה");
+  return data;
+}
+
+// 4. Admin: Get full raw database
 export async function getAdminDatabase(userEmail) {
   const response = await fetch(`/api/admin/db?userEmail=${encodeURIComponent(userEmail)}`);
   const data = await parseResponse(response);
@@ -15,7 +55,7 @@ export async function getAdminDatabase(userEmail) {
   return data;
 }
 
-// 2. Get Global Catalog (Bookstore)
+// 5. Get Global Catalog (Bookstore)
 export async function getCatalog() {
   const response = await fetch("/api/catalog");
   const data = await parseResponse(response);
@@ -23,7 +63,7 @@ export async function getCatalog() {
   return data;
 }
 
-// 3. Admin: Add book to global catalog
+// 6. Admin: Add book to global catalog
 export async function addCatalogBook(userEmail, bookDetails) {
   const response = await fetch("/api/catalog", {
     method: "POST",
@@ -43,7 +83,7 @@ export async function addCatalogBook(userEmail, bookDetails) {
   return data;
 }
 
-// 4. User: Purchase / Claim book from catalog to personal library
+// 7. User: Purchase / Claim book from catalog to personal library
 export async function purchaseBook(userId, bookId) {
   const response = await fetch("/api/user/purchase", {
     method: "POST",
@@ -55,7 +95,7 @@ export async function purchaseBook(userId, bookId) {
   return data;
 }
 
-// 5. Get all books in user's personal library
+// 8. Get all books in user's personal library
 export async function getUserBooks(userId) {
   const response = await fetch(`/api/books?userId=${encodeURIComponent(userId)}`);
   const data = await parseResponse(response);
@@ -63,7 +103,7 @@ export async function getUserBooks(userId) {
   return data;
 }
 
-// 6. Update progress of a specific book
+// 9. Update progress of a specific book
 export async function updateBookProgress(userId, bookId, pageNumber) {
   const response = await fetch("/api/update-progress", {
     method: "POST",
@@ -79,7 +119,7 @@ export async function updateBookProgress(userId, bookId, pageNumber) {
   return data;
 }
 
-// 7. Link Bookmark Device ID
+// 10. Link Bookmark Device ID
 export async function linkBookmarkDevice(userId, deviceId) {
   const response = await fetch("/api/devices/link", {
     method: "POST",
@@ -91,7 +131,7 @@ export async function linkBookmarkDevice(userId, deviceId) {
   return data;
 }
 
-// 8. Get user linked devices
+// 11. Get user linked devices
 export async function getUserDevices(userId) {
   const response = await fetch(`/api/devices?userId=${encodeURIComponent(userId)}`);
   const data = await parseResponse(response);

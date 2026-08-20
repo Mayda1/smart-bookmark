@@ -28,7 +28,7 @@ if (!isVercel) {
   }
 }
 
-// Initial Global Catalog Books (Created by Company Admin)
+// Initial Global Catalog Books
 const DEFAULT_CATALOG = [
   {
     bookId: "BOOK_01",
@@ -63,13 +63,14 @@ function readDB() {
         users: Array.isArray(parsed.users) ? parsed.users : [],
         progress: parsed.progress || {},
         devices: parsed.devices || {},
-        catalog: Array.isArray(parsed.catalog) && parsed.catalog.length > 0 ? parsed.catalog : DEFAULT_CATALOG
+        catalog: Array.isArray(parsed.catalog) && parsed.catalog.length > 0 ? parsed.catalog : DEFAULT_CATALOG,
+        notes: parsed.notes || {}
       };
     }
   } catch (err) {
     console.error("Error reading database:", err);
   }
-  return { users: [], progress: {}, devices: {}, catalog: DEFAULT_CATALOG };
+  return { users: [], progress: {}, devices: {}, catalog: DEFAULT_CATALOG, notes: {} };
 }
 
 // Helper to write database safely
@@ -103,7 +104,7 @@ app.post('/api/auth/signup', (req, res) => {
     const newUser = { email: normalizedEmail, password, uid, role: isAdmin ? "admin" : "user" };
     dbData.users.push(newUser);
     
-    // Seed new user with first default book in their purchased library
+    // Seed new user with first default book
     dbData.progress[uid] = [DEFAULT_CATALOG[0]];
     
     writeDB(dbData);
@@ -138,7 +139,72 @@ app.post('/api/auth/login', (req, res) => {
   }
 });
 
-// 3. Admin Raw Database Inspection Endpoint
+// 3. GET Book Notes & Highlights
+app.get('/api/notes', (req, res) => {
+  try {
+    const { userId, bookId } = req.query;
+    if (!userId) return res.status(400).json({ error: "userId required" });
+
+    const dbData = readDB();
+    const userNotes = dbData.notes[userId] || [];
+
+    if (bookId) {
+      return res.json(userNotes.filter(n => n.bookId === bookId));
+    }
+    return res.json(userNotes);
+  } catch (err) {
+    return res.status(500).json({ error: "שגיאה בשליפת ההערות" });
+  }
+});
+
+// 4. POST Create Book Note / Highlight
+app.post('/api/notes', (req, res) => {
+  try {
+    const { userId, bookId, bookTitle, page, quote, note } = req.body || {};
+    if (!userId || !bookId) {
+      return res.status(400).json({ error: "userId and bookId required" });
+    }
+
+    const dbData = readDB();
+    if (!dbData.notes[userId]) dbData.notes[userId] = [];
+
+    const newNote = {
+      noteId: "NOTE_" + Math.random().toString(36).substr(2, 9),
+      bookId,
+      bookTitle: bookTitle || "ספר",
+      page: parseInt(page) || 1,
+      quote: quote || "",
+      note: note || "",
+      createdAt: new Date().toISOString()
+    };
+
+    dbData.notes[userId].unshift(newNote); // newest first
+    writeDB(dbData);
+    return res.json(newNote);
+  } catch (err) {
+    return res.status(500).json({ error: "שגיאה בשמירת ההערה" });
+  }
+});
+
+// 5. DELETE Book Note
+app.delete('/api/notes/:noteId', (req, res) => {
+  try {
+    const { noteId } = req.params;
+    const { userId } = req.query;
+    if (!userId || !noteId) return res.status(400).json({ error: "userId and noteId required" });
+
+    const dbData = readDB();
+    if (dbData.notes[userId]) {
+      dbData.notes[userId] = dbData.notes[userId].filter(n => n.noteId !== noteId);
+      writeDB(dbData);
+    }
+    return res.json({ success: true, noteId });
+  } catch (err) {
+    return res.status(500).json({ error: "שגיאה במחיקת ההערה" });
+  }
+});
+
+// 6. Admin Raw Database Inspection Endpoint
 app.get('/api/admin/db', (req, res) => {
   try {
     const { userEmail } = req.query;
@@ -149,20 +215,20 @@ app.get('/api/admin/db', (req, res) => {
     }
 
     const dbData = readDB();
-    // Return sanitized database without plain passwords
     const sanitizedUsers = dbData.users.map(({ password, ...rest }) => rest);
     return res.json({
       users: sanitizedUsers,
       progress: dbData.progress,
       devices: dbData.devices,
-      catalog: dbData.catalog
+      catalog: dbData.catalog,
+      notes: dbData.notes
     });
   } catch (err) {
     return res.status(500).json({ error: "שגיאה בשליפת הדאטהבייס" });
   }
 });
 
-// 4. Get Global Books Catalog (For Bookstore)
+// 7. Get Global Books Catalog (For Bookstore)
 app.get('/api/catalog', (req, res) => {
   try {
     const dbData = readDB();
@@ -172,7 +238,7 @@ app.get('/api/catalog', (req, res) => {
   }
 });
 
-// 5. Admin Add Book to Global Catalog
+// 8. Admin Add Book to Global Catalog
 app.post('/api/catalog', (req, res) => {
   try {
     const { userEmail, title, author, totalPages, cover, price, description } = req.body || {};
@@ -205,7 +271,7 @@ app.post('/api/catalog', (req, res) => {
   }
 });
 
-// 6. User Purchase / Claim Book from Catalog
+// 9. User Purchase / Claim Book from Catalog
 app.post('/api/user/purchase', (req, res) => {
   try {
     const { userId, bookId } = req.body || {};
@@ -241,7 +307,7 @@ app.post('/api/user/purchase', (req, res) => {
   }
 });
 
-// 7. Get user's purchased books
+// 10. Get user's purchased books
 app.get('/api/books', (req, res) => {
   try {
     const { userId } = req.query;
@@ -262,7 +328,7 @@ app.get('/api/books', (req, res) => {
   }
 });
 
-// 8. Link Bookmark Device (Option A)
+// 11. Link Bookmark Device (Option A)
 app.post('/api/devices/link', (req, res) => {
   try {
     const { userId, deviceId } = req.body || {};
@@ -281,7 +347,7 @@ app.post('/api/devices/link', (req, res) => {
   }
 });
 
-// 9. Get linked devices for a user
+// 12. Get linked devices for a user
 app.get('/api/devices', (req, res) => {
   try {
     const { userId } = req.query;
@@ -295,7 +361,7 @@ app.get('/api/devices', (req, res) => {
   }
 });
 
-// 10. Update reading progress
+// 13. Update reading progress
 app.post('/api/update-progress', (req, res) => {
   try {
     let { userId, deviceId, bookId, currentPage } = req.body || {};
