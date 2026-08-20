@@ -3,12 +3,13 @@ import { useAuth } from "../context/AuthContext";
 import { getUserBooks, updateBookProgress, getUserNotes, addNote, deleteNote } from "../dbHelper";
 import { translations } from "../translations";
 
+// Reader component - Single Back button at top header only
 export default function Reader({ bookId, initialPage, startPage, onBack, onClose, showToast }) {
   const { currentUser } = useAuth();
   const [book, setBook] = useState(null);
   const [currentPage, setCurrentPage] = useState(initialPage || startPage || 1);
 
-  // Single navigation back handler
+  // Single navigation back handler (Triggers top header back button)
   function handleBackNav() {
     try {
       if (window.getSelection) {
@@ -173,7 +174,7 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
 
   return (
     <div className="reader-container" style={{ position: 'relative' }}>
-      {/* Upper Navigation Bar (The ONLY Back to Library button on the page) */}
+      {/* Upper Navigation Bar (THE ONLY Back to Library button on the entire page!) */}
       <div className="reader-header">
         <button onClick={handleBackNav} className="btn btn-secondary btn-small" type="button">
           {t.backToLibrary}
