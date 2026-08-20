@@ -7,69 +7,50 @@ async function parseResponse(response) {
   throw new Error(text || "שגיאת תקשורת עם השרת");
 }
 
-// Client-side LocalStorage Helpers for zero-loss persistence on Vercel
-function getLocalNotes(userId) {
+// ==========================================
+// CLIENT-SIDE LOCALSTORAGE — PRIMARY STORAGE
+// Notes are persisted in the browser's LocalStorage as the single source of truth.
+// The Vercel Serverless /tmp filesystem is ephemeral and unreliable for persistence.
+// ==========================================
+
+const NOTES_STORAGE_KEY = "smart_bookmark_notes";
+
+function getAllLocalNotes() {
   try {
-    const raw = localStorage.getItem(`smart_bookmark_notes_${userId}`);
+    const raw = localStorage.getItem(NOTES_STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch (e) {
     return [];
   }
 }
 
-function saveLocalNote(userId, noteObj) {
+function setAllLocalNotes(notes) {
   try {
-    const current = getLocalNotes(userId);
-    const updated = [noteObj, ...current.filter(n => n.noteId !== noteObj.noteId)];
-    localStorage.setItem(`smart_bookmark_notes_${userId}`, JSON.stringify(updated));
-  } catch (e) {}
-}
-
-function removeLocalNote(userId, noteId) {
-  try {
-    const current = getLocalNotes(userId);
-    const updated = current.filter(n => n.noteId !== noteId);
-    localStorage.setItem(`smart_bookmark_notes_${userId}`, JSON.stringify(updated));
-  } catch (e) {}
-}
-
-// 1. Get user notes & highlights (combines API + client LocalStorage fail-safe)
-export async function getUserNotes(userId, bookId = "") {
-  let apiNotes = [];
-  try {
-    const ts = Date.now();
-    const url = bookId 
-      ? `/api/notes?userId=${encodeURIComponent(userId)}&bookId=${encodeURIComponent(bookId)}&_t=${ts}`
-      : `/api/notes?userId=${encodeURIComponent(userId)}&_t=${ts}`;
-    const response = await fetch(url, { cache: "no-store" });
-    if (response.ok) {
-      apiNotes = await parseResponse(response);
-    }
+    localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(notes));
   } catch (e) {
-    console.warn("API notes fetch warning, using local backup:", e);
+    console.error("LocalStorage write error:", e);
   }
+}
 
-  const localNotes = getLocalNotes(userId);
-  
-  // Merge API and LocalStorage notes, deduplicating by noteId
-  const map = new Map();
-  [...apiNotes, ...localNotes].forEach(n => {
-    if (n && n.noteId) map.set(n.noteId, n);
-  });
-
-  let merged = Array.from(map.values());
+// 1. Get user notes & highlights — reads from LocalStorage only
+export async function getUserNotes(userId, bookId = "") {
+  let notes = getAllLocalNotes().filter(n => n.userId === userId);
 
   if (bookId) {
-    merged = merged.filter(n => n.bookId === bookId);
+    notes = notes.filter(n => n.bookId === bookId);
   }
 
-  return merged;
+  // Sort by creation date, newest first
+  notes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  return notes;
 }
 
-// 2. Add a new note/quote (saves to API + LocalStorage)
+// 2. Add a new note/quote — saves to LocalStorage immediately, also tries server
 export async function addNote(userId, noteData) {
   const newNote = {
-    noteId: "NOTE_" + Math.random().toString(36).substr(2, 9),
+    noteId: "NOTE_" + Date.now() + "_" + Math.random().toString(36).substr(2, 6),
+    userId,
     bookId: noteData.bookId,
     bookTitle: noteData.bookTitle || "ספר",
     page: parseInt(noteData.page) || 1,
@@ -78,11 +59,14 @@ export async function addNote(userId, noteData) {
     createdAt: new Date().toISOString()
   };
 
-  // Save to client LocalStorage backup immediately
-  saveLocalNote(userId, newNote);
+  // Save to LocalStorage immediately — this is the primary store
+  const allNotes = getAllLocalNotes();
+  allNotes.unshift(newNote);
+  setAllLocalNotes(allNotes);
 
+  // Best-effort server save (fire and forget, does not affect return value)
   try {
-    const response = await fetch("/api/notes", {
+    fetch("/api/notes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -93,34 +77,32 @@ export async function addNote(userId, noteData) {
         quote: noteData.quote,
         note: noteData.note
       })
-    });
-    if (response.ok) {
-      const serverNote = await parseResponse(response);
-      saveLocalNote(userId, serverNote);
-      return serverNote;
-    }
-  } catch (err) {
-    console.warn("Server save warning, note kept in local storage:", err);
-  }
+    }).catch(() => {});
+  } catch (e) {}
 
   return newNote;
 }
 
-// 3. Delete a note (deletes from API + LocalStorage)
+// 3. Delete a note — removes from LocalStorage, also tries server
 export async function deleteNote(userId, noteId) {
-  removeLocalNote(userId, noteId);
+  // Remove from LocalStorage immediately
+  const allNotes = getAllLocalNotes();
+  const filtered = allNotes.filter(n => n.noteId !== noteId);
+  setAllLocalNotes(filtered);
+
+  // Best-effort server delete
   try {
-    const response = await fetch(`/api/notes/${encodeURIComponent(noteId)}?userId=${encodeURIComponent(userId)}`, {
+    fetch(`/api/notes/${encodeURIComponent(noteId)}?userId=${encodeURIComponent(userId)}`, {
       method: "DELETE"
-    });
-    if (response.ok) {
-      return await parseResponse(response);
-    }
-  } catch (err) {
-    console.warn("Delete note server error:", err);
-  }
+    }).catch(() => {});
+  } catch (e) {}
+
   return { success: true, noteId };
 }
+
+// ==========================================
+// SERVER API CALLS (Non-notes — these use the server normally)
+// ==========================================
 
 // 4. Admin: Get full raw database
 export async function getAdminDatabase(userEmail) {
