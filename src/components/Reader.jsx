@@ -100,7 +100,10 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
       const found = booksData.find(b => b.bookId === bookId);
       if (found) {
         setBook(found);
-        setCurrentPage(found.currentPage || 1);
+        // Use the explicitly requested page (e.g. from "go to page") if provided,
+        // otherwise fall back to saved reading progress
+        const requestedPage = initialPage || startPage;
+        setCurrentPage(requestedPage || found.currentPage || 1);
       }
       setNotes(notesData);
     } catch (err) {
