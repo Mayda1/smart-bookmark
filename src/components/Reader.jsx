@@ -10,9 +10,12 @@ export default function Reader({ bookId, initialPage, onBack, showToast }) {
   const [loading, setLoading] = useState(true);
   const [isTurning, setIsTurning] = useState(false);
   
+  // Selected Text & Highlight Sidebar state
+  const [selectedText, setSelectedText] = useState("");
+  const [showHighlightPanel, setShowHighlightPanel] = useState(false);
+  
   // Notes state for this book
   const [notes, setNotes] = useState([]);
-  const [showNoteForm, setShowNoteForm] = useState(false);
   const [newQuote, setNewQuote] = useState("");
   const [newNoteText, setNewNoteText] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
@@ -50,12 +53,31 @@ export default function Reader({ bookId, initialPage, onBack, showToast }) {
     loadData();
   }, [bookId, currentUser]);
 
+  // Capture user text selection on the page
+  function handleTextSelection() {
+    const selection = window.getSelection();
+    if (selection) {
+      const text = selection.toString().trim();
+      if (text.length > 2) {
+        setSelectedText(text);
+      }
+    }
+  }
+
+  // Open side highlight panel pre-filled with selected text
+  function openHighlightPanel() {
+    setNewQuote(selectedText);
+    setShowHighlightPanel(true);
+  }
+
   async function handlePageChange(newPage) {
     if (!book) return;
     if (newPage < 1 || newPage > book.totalPages) return;
 
     setIsTurning(true);
     setCurrentPage(newPage);
+    setSelectedText("");
+    setShowHighlightPanel(false);
 
     try {
       await updateBookProgress(currentUser.uid, bookId, newPage);
@@ -66,7 +88,7 @@ export default function Reader({ bookId, initialPage, onBack, showToast }) {
     }
   }
 
-  async function handleAddNote(e) {
+  async function handleAddHighlightNote(e) {
     e.preventDefault();
     if (!newQuote.trim() && !newNoteText.trim()) return;
 
@@ -82,8 +104,15 @@ export default function Reader({ bookId, initialPage, onBack, showToast }) {
       setNotes(prev => [added, ...prev]);
       setNewQuote("");
       setNewNoteText("");
-      setShowNoteForm(false);
-      showToast(lang === "he" ? "ההערה נשמרה במחברת שלך!" : "Note saved to your journal!", "success");
+      setSelectedText("");
+      setShowHighlightPanel(false);
+      
+      // Clear native text selection
+      if (window.getSelection) {
+        window.getSelection().removeAllRanges();
+      }
+
+      showToast(lang === "he" ? "הציטוט נשמר במחברת שלך!" : "Highlight saved to your journal!", "success");
     } catch (err) {
       showToast(err.message || "Error saving note", "error");
     } finally {
@@ -165,23 +194,31 @@ export default function Reader({ bookId, initialPage, onBack, showToast }) {
         </div>
       </div>
 
-      {/* Book Reading Canvas */}
-      <div className="book-container">
+      {/* Main Layout: Reading Page Canvas + Side Action Panel */}
+      <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start', justifyContent: 'center', maxWidth: '1100px', margin: '0 auto' }}>
+        
+        {/* Navigation Button Left */}
         <button 
           onClick={() => handlePageChange(currentPage - 1)} 
           disabled={currentPage <= 1}
           className="nav-page-btn"
+          style={{ marginTop: '200px' }}
           title="עמוד קודם"
         >
           {lang === "he" ? "→" : "←"}
         </button>
 
+        {/* Book Reading Viewport (Clean Canvas - No overlays on top of text!) */}
         <div 
           className={`book-page-viewport ${isTurning ? "page-turning" : ""}`}
+          onMouseUp={handleTextSelection}
+          onTouchEnd={handleTextSelection}
           style={{
             backgroundColor: currentTheme.bg,
             color: currentTheme.text,
-            borderLeftColor: currentTheme.border
+            borderLeftColor: currentTheme.border,
+            userSelect: 'text',
+            cursor: 'text'
           }}
         >
           <div className="book-page">
@@ -239,114 +276,121 @@ export default function Reader({ bookId, initialPage, onBack, showToast }) {
           </div>
         </div>
 
+        {/* Navigation Button Right */}
         <button 
           onClick={() => handlePageChange(currentPage + 1)} 
           disabled={currentPage >= book.totalPages}
           className="nav-page-btn"
+          style={{ marginTop: '200px' }}
           title="עמוד הבא"
         >
           {lang === "he" ? "←" : "→"}
         </button>
-      </div>
 
-      {/* Book Notes & Highlights Section */}
-      <div className="notes-section" style={{ maxWidth: '850px', margin: '2.5rem auto 0', textRight: 'right' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-          <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.4rem', color: 'var(--primary-slate)' }}>
-            📝 ציטוטים והערות מעמוד זה ({notes.length})
-          </h3>
-          <button 
-            onClick={() => setShowNoteForm(!showNoteForm)} 
-            className="btn btn-secondary btn-small"
-          >
-            {showNoteForm ? "סגור" : t.addNoteBtn}
-          </button>
+        {/* SIDE ACTIONS & HIGHLIGHT PANEL (Completely outside the page canvas!) */}
+        <div style={{ width: '280px', flexShrink: 0 }}>
+          
+          {/* Side Trigger Button: Appears ONLY when text is highlighted on page */}
+          {selectedText && !showHighlightPanel && (
+            <div 
+              className="add-book-form"
+              style={{
+                background: '#ffffff',
+                border: '1px solid var(--accent-sand)',
+                boxShadow: 'var(--shadow-md)',
+                animation: 'fadeIn 0.3s ease-out',
+                padding: '1.15rem'
+              }}
+            >
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                ✍️ סומן משפט בעמוד {currentPage}:
+              </p>
+              <p style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '0.95rem', color: 'var(--primary-slate)', marginBottom: '1rem', lineClamp: 3, overflow: 'hidden' }}>
+                “{selectedText}”
+              </p>
+              <button 
+                onClick={openHighlightPanel} 
+                className="btn btn-primary"
+                style={{ width: '100%', fontSize: '0.85rem' }}
+              >
+                ✍️ שמור ציטוט זה במחברת
+              </button>
+            </div>
+          )}
+
+          {/* Side Form Panel: Opens when user clicks Save Quote */}
+          {showHighlightPanel && (
+            <form onSubmit={handleAddHighlightNote} className="add-book-form" style={{ padding: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1rem' }}>שמירת ציטוט מעמוד {currentPage}</h4>
+                <button type="button" onClick={() => setShowHighlightPanel(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1rem' }}>✕</button>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '0.85rem' }}>
+                <label style={{ fontSize: '0.8rem' }}>💬 הציטוט שסומן</label>
+                <textarea 
+                  value={newQuote} 
+                  onChange={(e) => setNewQuote(e.target.value)}
+                  rows="3"
+                  style={{
+                    background: "#fdfdfc",
+                    border: "1px solid var(--border-subtle)",
+                    borderRadius: "8px",
+                    padding: "0.5rem",
+                    fontFamily: "var(--font-serif)",
+                    fontSize: "0.9rem",
+                    fontStyle: "italic"
+                  }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label style={{ fontSize: '0.8rem' }}>💡 מחשבה אישית (אופציונלי)</label>
+                <textarea 
+                  value={newNoteText} 
+                  onChange={(e) => setNewNoteText(e.target.value)} 
+                  rows="2"
+                  style={{
+                    background: "#fdfdfc",
+                    border: "1px solid var(--border-subtle)",
+                    borderRadius: "8px",
+                    padding: "0.5rem",
+                    fontFamily: "var(--font-sans)",
+                    fontSize: "0.85rem"
+                  }}
+                  placeholder="הרעיון שלך..."
+                />
+              </div>
+
+              <button disabled={noteSaving} type="submit" className="btn btn-primary" style={{ width: '100%', fontSize: '0.85rem' }}>
+                {noteSaving ? "..." : t.saveNoteBtn}
+              </button>
+            </form>
+          )}
+
+          {/* Saved Highlights List for this book */}
+          {notes.length > 0 && (
+            <div style={{ marginTop: '1.5rem' }}>
+              <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1rem', color: 'var(--primary-slate)', marginBottom: '0.85rem' }}>
+                📓 ציטוטים שמורים בספר ({notes.length})
+              </h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', maxHeight: '400px', overflowY: 'auto' }}>
+                {notes.map(n => (
+                  <div key={n.noteId} style={{ background: '#fff', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '0.85rem', fontSize: '0.85rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                      <span className="badge badge-admin" style={{ fontSize: '0.7rem' }}>עמוד {n.page}</span>
+                      <button onClick={() => handleDeleteNote(n.noteId)} style={{ background: 'transparent', border: 'none', color: 'var(--error)', cursor: 'pointer', fontSize: '0.75rem' }}>🗑️</button>
+                    </div>
+                    {n.quote && <p style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', color: 'var(--primary-slate)', marginBottom: '0.3rem' }}>“{n.quote}”</p>}
+                    {n.note && <p style={{ color: 'var(--text-secondary)' }}>💡 {n.note}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
         </div>
 
-        {/* Add Note Form */}
-        {showNoteForm && (
-          <form onSubmit={handleAddNote} className="add-book-form" style={{ marginBottom: '1.5rem' }}>
-            <h4 style={{ fontFamily: 'var(--font-serif)', marginBottom: '1rem' }}>
-              שמירת ציטוט / הערה מעמוד {currentPage}
-            </h4>
-            <div className="form-group" style={{ marginBottom: '1rem' }}>
-              <label>💬 {t.quoteInput}</label>
-              <input 
-                type="text" 
-                value={newQuote} 
-                onChange={(e) => setNewQuote(e.target.value)} 
-                placeholder='לדוגמה: "הזמן איננו קו ישר..."'
-              />
-            </div>
-            <div className="form-group" style={{ marginBottom: '1rem' }}>
-              <label>💡 {t.noteInput}</label>
-              <textarea 
-                value={newNoteText} 
-                onChange={(e) => setNewNoteText(e.target.value)} 
-                rows="3"
-                style={{
-                  background: "#fdfdfc",
-                  border: "1px solid var(--border-subtle)",
-                  borderRadius: "8px",
-                  padding: "0.75rem",
-                  fontFamily: "var(--font-sans)",
-                  fontSize: "0.95rem"
-                }}
-                placeholder="לדוגמה: רעיון מעולה שמתחבר לפרויקט שלי..."
-              />
-            </div>
-            <button disabled={noteSaving} type="submit" className="btn btn-primary btn-small">
-              {noteSaving ? "..." : t.saveNoteBtn}
-            </button>
-          </form>
-        )}
-
-        {/* Saved Notes List */}
-        {notes.length === 0 ? (
-          <p style={{ color: 'var(--text-tertiary)', fontSize: '0.95rem' }}>
-            עדיין לא שמרת ציטוטים או הערות מתוך הספר הזה. לחצי על <strong>"{t.addNoteBtn}"</strong> כדי לשמור מחשבה!
-          </p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {notes.map(n => (
-              <div 
-                key={n.noteId} 
-                style={{
-                  background: 'var(--surface-card)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: '12px',
-                  padding: '1.15rem',
-                  boxShadow: 'var(--shadow-sm)',
-                  position: 'relative'
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                  <span className="badge badge-admin">
-                    {t.pageTag} {n.page}
-                  </span>
-                  <button 
-                    onClick={() => handleDeleteNote(n.noteId)} 
-                    style={{ background: 'transparent', border: 'none', color: 'var(--error)', cursor: 'pointer', fontSize: '0.85rem' }}
-                  >
-                    {t.deleteBtn} 🗑️
-                  </button>
-                </div>
-
-                {n.quote && (
-                  <p style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', color: 'var(--primary-slate)', fontSize: '1.05rem', marginBottom: '0.4rem' }}>
-                    “{n.quote}”
-                  </p>
-                )}
-
-                {n.note && (
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-                    💡 {n.note}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
