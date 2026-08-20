@@ -10,6 +10,16 @@ export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Helper to parse response safely
+  async function parseResponse(response) {
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      return await response.json();
+    }
+    const text = await response.text();
+    throw new Error(text || "שגיאת תקשורת עם השרת");
+  }
+
   // Sign Up
   async function signup(email, password) {
     const response = await fetch("/api/auth/signup", {
@@ -20,7 +30,7 @@ export function AuthProvider({ children }) {
       body: JSON.stringify({ email, password }),
     });
 
-    const data = await response.json();
+    const data = await parseResponse(response);
     if (!response.ok) {
       throw new Error(data.error || "הרשמה נכשלה");
     }
@@ -40,7 +50,7 @@ export function AuthProvider({ children }) {
       body: JSON.stringify({ email, password }),
     });
 
-    const data = await response.json();
+    const data = await parseResponse(response);
     if (!response.ok) {
       throw new Error(data.error || "התחברות נכשלה");
     }

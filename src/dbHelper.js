@@ -1,7 +1,16 @@
+async function parseResponse(response) {
+  const contentType = response.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    return await response.json();
+  }
+  const text = await response.text();
+  throw new Error(text || "שגיאת תקשורת עם השרת");
+}
+
 // 1. Get all books for a specific user from the Express Server
 export async function getUserBooks(userId) {
   const response = await fetch(`/api/books?userId=${encodeURIComponent(userId)}`);
-  const data = await response.json();
+  const data = await parseResponse(response);
   
   if (!response.ok) {
     throw new Error(data.error || "שגיאה בטעינת הספרייה");
@@ -23,7 +32,7 @@ export async function updateBookProgress(userId, bookId, pageNumber) {
     })
   });
 
-  const data = await response.json();
+  const data = await parseResponse(response);
   if (!response.ok) {
     throw new Error(data.error || "שגיאה בעדכון התקדמות הקריאה");
   }
@@ -46,7 +55,7 @@ export async function addNewBook(userId, bookDetails) {
     })
   });
 
-  const data = await response.json();
+  const data = await parseResponse(response);
   if (!response.ok) {
     throw new Error(data.error || "שגיאה בהוספת הספר");
   }
@@ -63,7 +72,7 @@ export async function linkBookmarkDevice(userId, deviceId) {
     body: JSON.stringify({ userId, deviceId })
   });
 
-  const data = await response.json();
+  const data = await parseResponse(response);
   if (!response.ok) {
     throw new Error(data.error || "שגיאה בקישור המכשיר");
   }
@@ -73,7 +82,7 @@ export async function linkBookmarkDevice(userId, deviceId) {
 // 5. Get user linked devices
 export async function getUserDevices(userId) {
   const response = await fetch(`/api/devices?userId=${encodeURIComponent(userId)}`);
-  const data = await response.json();
+  const data = await parseResponse(response);
   if (!response.ok) {
     throw new Error(data.error || "שגיאה בשליפת מכשירים");
   }
