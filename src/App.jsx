@@ -75,7 +75,8 @@ function MainAppContent() {
         ) : (
           <Reader 
             bookId={activeBookId} 
-            startPage={activeBookPage} 
+            initialPage={activeBookPage} 
+            onBack={handleCloseBook}
             onClose={handleCloseBook}
             showToast={showToast}
           />

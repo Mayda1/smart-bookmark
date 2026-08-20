@@ -3,10 +3,15 @@ import { useAuth } from "../context/AuthContext";
 import { getUserBooks, updateBookProgress, getUserNotes, addNote, deleteNote } from "../dbHelper";
 import { translations } from "../translations";
 
-export default function Reader({ bookId, initialPage, onBack, showToast }) {
+export default function Reader({ bookId, initialPage, startPage, onBack, onClose, showToast }) {
   const { currentUser } = useAuth();
   const [book, setBook] = useState(null);
-  const [currentPage, setCurrentPage] = useState(initialPage || 1);
+  const [currentPage, setCurrentPage] = useState(initialPage || startPage || 1);
+
+  function handleBackNav() {
+    if (onBack) onBack();
+    else if (onClose) onClose();
+  }
   const [loading, setLoading] = useState(true);
   const [isTurning, setIsTurning] = useState(false);
   
@@ -142,7 +147,7 @@ export default function Reader({ bookId, initialPage, onBack, showToast }) {
     return (
       <div className="empty-library-state">
         <p>הספר המבוקש לא נמצא.</p>
-        <button onClick={onBack} className="btn btn-primary">{t.backToLibrary}</button>
+        <button onClick={handleBackNav} className="btn btn-primary">{t.backToLibrary}</button>
       </div>
     );
   }
@@ -159,7 +164,7 @@ export default function Reader({ bookId, initialPage, onBack, showToast }) {
     <div className="reader-container" style={{ position: 'relative' }}>
       {/* Upper Navigation Bar */}
       <div className="reader-header">
-        <button onClick={onBack} className="btn btn-secondary btn-small">
+        <button onClick={handleBackNav} className="btn btn-secondary btn-small">
           {t.backToLibrary}
         </button>
 
