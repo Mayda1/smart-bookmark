@@ -24,6 +24,7 @@ function MainAppContent() {
   const [activeBookId, setActiveBookId] = useState(null);
   const [activeBookPage, setActiveBookPage] = useState(1);
   const [toasts, setToasts] = useState([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Toast manager
   function showToast(message, type = "info") {
@@ -50,6 +51,7 @@ function MainAppContent() {
   function handleCloseBook() {
     setViewMode("library");
     setActiveBookId(null);
+    setRefreshTrigger(prev => prev + 1); // Triggers fresh data reload in Library
   }
 
   return (
@@ -71,11 +73,13 @@ function MainAppContent() {
           <Library 
             onOpenBook={handleOpenBook} 
             showToast={showToast}
+            refreshTrigger={refreshTrigger}
           />
         ) : (
           <Reader 
             bookId={activeBookId} 
             initialPage={activeBookPage} 
+            startPage={activeBookPage} 
             onBack={handleCloseBook}
             onClose={handleCloseBook}
             showToast={showToast}

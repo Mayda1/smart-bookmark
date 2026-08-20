@@ -15,7 +15,7 @@ import {
 import { translations } from "../translations";
 import { useNavigate } from "react-router-dom";
 
-export default function Library({ onOpenBook, showToast }) {
+export default function Library({ onOpenBook, showToast, refreshTrigger }) {
   const { currentUser, logout } = useAuth();
   const [activeTab, setActiveTab] = useState("library"); // 'library', 'store', 'journal', or 'admin_db'
   const [books, setBooks] = useState([]);
@@ -97,7 +97,7 @@ export default function Library({ onOpenBook, showToast }) {
 
   useEffect(() => {
     loadData(false);
-  }, [currentUser]);
+  }, [currentUser, refreshTrigger]);
 
   function toggleAdminViewMode() {
     if (adminViewMode === "admin") {

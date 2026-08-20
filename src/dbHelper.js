@@ -7,12 +7,13 @@ async function parseResponse(response) {
   throw new Error(text || "שגיאת תקשורת עם השרת");
 }
 
-// 1. Get user notes & highlights
+// 1. Get user notes & highlights (with cache-busting timestamp to guarantee fresh data)
 export async function getUserNotes(userId, bookId = "") {
+  const ts = Date.now();
   const url = bookId 
-    ? `/api/notes?userId=${encodeURIComponent(userId)}&bookId=${encodeURIComponent(bookId)}`
-    : `/api/notes?userId=${encodeURIComponent(userId)}`;
-  const response = await fetch(url);
+    ? `/api/notes?userId=${encodeURIComponent(userId)}&bookId=${encodeURIComponent(bookId)}&_t=${ts}`
+    : `/api/notes?userId=${encodeURIComponent(userId)}&_t=${ts}`;
+  const response = await fetch(url, { cache: "no-store" });
   const data = await parseResponse(response);
   if (!response.ok) throw new Error(data.error || "שגיאה בשליפת ההערות");
   return data;
@@ -49,7 +50,8 @@ export async function deleteNote(userId, noteId) {
 
 // 4. Admin: Get full raw database
 export async function getAdminDatabase(userEmail) {
-  const response = await fetch(`/api/admin/db?userEmail=${encodeURIComponent(userEmail)}`);
+  const ts = Date.now();
+  const response = await fetch(`/api/admin/db?userEmail=${encodeURIComponent(userEmail)}&_t=${ts}`, { cache: "no-store" });
   const data = await parseResponse(response);
   if (!response.ok) throw new Error(data.error || "שגיאה בשליפת הדאטהבייס");
   return data;
@@ -57,7 +59,8 @@ export async function getAdminDatabase(userEmail) {
 
 // 5. Get Global Catalog (Bookstore)
 export async function getCatalog() {
-  const response = await fetch("/api/catalog");
+  const ts = Date.now();
+  const response = await fetch(`/api/catalog?_t=${ts}`, { cache: "no-store" });
   const data = await parseResponse(response);
   if (!response.ok) throw new Error(data.error || "שגיאה בשליפת הקטלוג");
   return data;
@@ -97,7 +100,8 @@ export async function purchaseBook(userId, bookId) {
 
 // 8. Get all books in user's personal library
 export async function getUserBooks(userId) {
-  const response = await fetch(`/api/books?userId=${encodeURIComponent(userId)}`);
+  const ts = Date.now();
+  const response = await fetch(`/api/books?userId=${encodeURIComponent(userId)}&_t=${ts}`, { cache: "no-store" });
   const data = await parseResponse(response);
   if (!response.ok) throw new Error(data.error || "שגיאה בטעינת הספרייה");
   return data;
@@ -133,7 +137,8 @@ export async function linkBookmarkDevice(userId, deviceId) {
 
 // 11. Get user linked devices
 export async function getUserDevices(userId) {
-  const response = await fetch(`/api/devices?userId=${encodeURIComponent(userId)}`);
+  const ts = Date.now();
+  const response = await fetch(`/api/devices?userId=${encodeURIComponent(userId)}&_t=${ts}`, { cache: "no-store" });
   const data = await parseResponse(response);
   if (!response.ok) throw new Error(data.error || "שגיאה בשליפת מכשירים");
   return data;
