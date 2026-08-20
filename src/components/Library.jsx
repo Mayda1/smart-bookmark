@@ -14,6 +14,7 @@ import {
 } from "../dbHelper";
 import { translations } from "../translations";
 import { useNavigate } from "react-router-dom";
+import NoteMenu from "./NoteMenu";
 
 export default function Library({ onOpenBook, showToast, refreshTrigger }) {
   const { currentUser, logout } = useAuth();
@@ -585,12 +586,12 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
                       {new Date(n.createdAt).toLocaleDateString()}
                     </span>
-                    <button 
-                      onClick={() => handleDeleteNote(n.noteId)} 
-                      style={{ background: 'transparent', border: 'none', color: 'var(--error)', cursor: 'pointer', fontSize: '0.85rem' }}
-                    >
-                      {t.deleteBtn} 🗑️
-                    </button>
+                    <NoteMenu
+                      onGoToPage={() => {
+                        onOpenBook(n.bookId, n.page);
+                      }}
+                      onDelete={() => handleDeleteNote(n.noteId)}
+                    />
                   </div>
                 </div>
               ))}

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
 import { getUserBooks, updateBookProgress, getUserNotes, addNote, deleteNote } from "../dbHelper";
 import { translations } from "../translations";
+import NoteMenu from "./NoteMenu";
 
 // Subtle marker highlight style
 const HIGHLIGHT_STYLE = {
@@ -475,9 +476,12 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
             {notes.map(n => (
               <div key={n.noteId} style={{ background: '#fff', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '1rem', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
                   <span className="badge badge-admin">עמוד {n.page}</span>
-                  <button onClick={() => handleDeleteNote(n.noteId)} style={{ background: 'transparent', border: 'none', color: 'var(--error)', cursor: 'pointer', fontSize: '0.8rem' }}>🗑️ מחק</button>
+                  <NoteMenu
+                    onGoToPage={() => handlePageChange(n.page)}
+                    onDelete={() => handleDeleteNote(n.noteId)}
+                  />
                 </div>
                 {n.quote && <p style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', color: 'var(--primary-slate)', fontSize: '0.95rem', marginBottom: '0.35rem' }}>“{n.quote}”</p>}
                 {n.note && <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>💡 {n.note}</p>}
