@@ -9,6 +9,7 @@ import {
   getUserDevices,
   getAdminDatabase
 } from "../dbHelper";
+import { translations } from "../translations";
 import { useNavigate } from "react-router-dom";
 
 export default function Library({ onOpenBook, showToast }) {
@@ -22,7 +23,15 @@ export default function Library({ onOpenBook, showToast }) {
   const [showAdminForm, setShowAdminForm] = useState(false);
   const [showDeviceModal, setShowDeviceModal] = useState(false);
 
-  const isAdmin = currentUser.email.toLowerCase() === "mayda2604@gmail.com" || currentUser.role === "admin";
+  // Language state: 'he' or 'en'
+  const [lang, setLang] = useState(() => localStorage.getItem("app_lang") || "he");
+  const t = translations[lang];
+
+  // Admin view toggle: 'admin' or 'user' (allows admin to preview site as regular user)
+  const [adminViewMode, setAdminViewMode] = useState("admin");
+
+  const isActualAdmin = currentUser.email.toLowerCase() === "mayda2604@gmail.com" || currentUser.role === "admin";
+  const showAdminControls = isActualAdmin && adminViewMode === "admin";
 
   // Admin Add Book Form state
   const [newTitle, setNewTitle] = useState("");
@@ -39,6 +48,13 @@ export default function Library({ onOpenBook, showToast }) {
 
   const navigate = useNavigate();
 
+  // Apply language direction to document root
+  useEffect(() => {
+    document.documentElement.dir = lang === "he" ? "rtl" : "ltr";
+    document.documentElement.lang = lang;
+    localStorage.setItem("app_lang", lang);
+  }, [lang]);
+
   // Load books and catalog
   async function loadData(showNotification = false) {
     try {
@@ -52,16 +68,16 @@ export default function Library({ onOpenBook, showToast }) {
       setCatalog(catalogData);
       setLinkedDevices(devicesData);
 
-      if (isAdmin) {
+      if (isActualAdmin) {
         const dbData = await getAdminDatabase(currentUser.email);
         setAdminDbData(dbData);
       }
 
       if (showNotification) {
-        showToast("הנתונים עודכנו בהצלחה!", "success");
+        showToast(lang === "he" ? "הנתונים עודכנו בהצלחה!" : "Data updated successfully!", "success");
       }
     } catch (err) {
-      showToast("שגיאה בטעינת הנתונים מהשרת", "error");
+      showToast(lang === "he" ? "שגיאה בטעינת הנתונים מהשרת" : "Error loading data", "error");
     } finally {
       setLoading(false);
     }
@@ -71,13 +87,31 @@ export default function Library({ onOpenBook, showToast }) {
     loadData(false);
   }, [currentUser]);
 
+  // Toggle Language
+  function toggleLanguage() {
+    const newLang = lang === "he" ? "en" : "he";
+    setLang(newLang);
+  }
+
+  // Toggle Admin View Mode
+  function toggleAdminViewMode() {
+    if (adminViewMode === "admin") {
+      setAdminViewMode("user");
+      if (activeTab === "admin_db") setActiveTab("library");
+      showToast(lang === "he" ? "עברת לתצוגת משתמשת רגילה" : "Switched to regular user view", "info");
+    } else {
+      setAdminViewMode("admin");
+      showToast(lang === "he" ? "חזרת לתצוגת מנהלת" : "Returned to Admin view", "info");
+    }
+  }
+
   // Log out handler
   async function handleLogout() {
     try {
       await logout();
       navigate("/login");
     } catch (err) {
-      showToast("התנתקות נכשלה", "error");
+      showToast(lang === "he" ? "התנתקות נכשלה" : "Logout failed", "error");
     }
   }
 
@@ -97,7 +131,7 @@ export default function Library({ onOpenBook, showToast }) {
         description: newDescription
       });
       setCatalog(prev => [...prev, added]);
-      showToast(`הספר "${newTitle}" נוסף בהצלחה לקטלוג החברה!`, "success");
+      showToast(lang === "he" ? `הספר "${newTitle}" נוסף בהצלחה לקטלוג החברה!` : `Book "${newTitle}" added to catalog!`, "success");
       setShowAdminForm(false);
       setNewTitle("");
       setNewAuthor("");
@@ -106,7 +140,7 @@ export default function Library({ onOpenBook, showToast }) {
       setNewDescription("");
       loadData(false);
     } catch (err) {
-      showToast(err.message || "שגיאה בהוספת הספר לקטלוג", "error");
+      showToast(err.message || "Error adding book", "error");
     } finally {
       setAddLoading(false);
     }
@@ -117,11 +151,11 @@ export default function Library({ onOpenBook, showToast }) {
     try {
       const added = await purchaseBook(currentUser.uid, bookId);
       setBooks(prev => [...prev, added]);
-      showToast(`תתחדשי! הספר "${bookTitle}" נוסף לספרייה האישית שלך`, "success");
+      showToast(lang === "he" ? `תתחדשי! הספר "${bookTitle}" נוסף לספרייה האישית שלך` : `Enjoy! "${bookTitle}" added to your library`, "success");
       setActiveTab("library");
       loadData(false);
     } catch (err) {
-      showToast(err.message || "שגיאה ברכישת הספר", "warning");
+      showToast(err.message || "Error purchasing book", "warning");
     }
   }
 
@@ -134,12 +168,12 @@ export default function Library({ onOpenBook, showToast }) {
       setDeviceLoading(true);
       const res = await linkBookmarkDevice(currentUser.uid, deviceIdInput);
       setLinkedDevices(prev => [...new Set([...prev, res.deviceId])]);
-      showToast(`הסימנייה (מזהה: ${res.deviceId}) קושרה בהצלחה לחשבונך!`, "success");
+      showToast(lang === "he" ? `הסימנייה (מזהה: ${res.deviceId}) קושרה בהצלחה לחשבונך!` : `Bookmark (${res.deviceId}) linked!`, "success");
       setDeviceIdInput("");
       setShowDeviceModal(false);
       loadData(false);
     } catch (err) {
-      showToast(err.message || "שגיאה בקישור המכשיר", "error");
+      showToast(err.message || "Error linking device", "error");
     } finally {
       setDeviceLoading(false);
     }
@@ -158,33 +192,58 @@ export default function Library({ onOpenBook, showToast }) {
       <div className="main-header" style={{ marginTop: 0 }}>
         <div className="logo-area">
           <span className="icon">📖</span>
-          <h1>Smart Bookmark</h1>
+          <h1>{t.appName}</h1>
         </div>
         
         <div className="connection-panel">
+          {/* Language Switcher */}
+          <button onClick={toggleLanguage} className="btn btn-secondary" style={{ minWidth: '100px', fontWeight: '700' }}>
+            <span>🌐</span>
+            {lang === "he" ? "English" : "עברית"}
+          </button>
+
           <button onClick={() => setShowDeviceModal(true)} className="btn btn-secondary">
             <span>🔌</span>
-            קשר סימנייה פיזית
+            {t.connectBookmark}
           </button>
+
           <button onClick={() => loadData(true)} className="btn btn-primary" id="btn-sync">
             <span className="btn-icon">🔄</span>
-            רענן ספרייה
+            {t.refreshLibrary}
           </button>
         </div>
       </div>
 
-      {/* User Bar */}
+      {/* User Bar & View Mode Toggle */}
       <div className="user-profile-bar">
         <div className="user-info-text">
-          <span>שלום, <strong>{currentUser.email}</strong></span>
-          {isAdmin && <span className="badge" style={{ backgroundColor: '#6b46c1', color: '#fff' }}>👑 מנהלת החברה</span>}
+          <span>{t.hello}, <strong>{currentUser.email}</strong></span>
+          {isActualAdmin && (
+            <span className="badge" style={{ backgroundColor: showAdminControls ? '#6b46c1' : '#718096', color: '#fff' }}>
+              {showAdminControls ? t.adminRole : (lang === "he" ? "👁️ במצב תצוגת קוראת" : "👁️ User View Mode")}
+            </span>
+          )}
           {linkedDevices.length > 0 && (
             <span className="badge" style={{ backgroundColor: 'rgba(47, 133, 90, 0.15)', color: '#2f855a', border: '1px solid rgba(47, 133, 90, 0.3)' }}>
-              סימנייה מקושרת: {linkedDevices.join(", ")}
+              {t.linkedBookmark}: {linkedDevices.join(", ")}
             </span>
           )}
         </div>
-        <button onClick={handleLogout} className="btn btn-secondary btn-small">התנתק 🚪</button>
+
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {/* Admin Toggle View Button */}
+          {isActualAdmin && (
+            <button 
+              onClick={toggleAdminViewMode} 
+              className="btn btn-secondary btn-small"
+              style={{ borderColor: showAdminControls ? '#6b46c1' : '#2b6cb0', color: showAdminControls ? '#6b46c1' : '#2b6cb0', fontWeight: '700' }}
+            >
+              {adminViewMode === "admin" ? t.viewAsUser : t.viewAsAdmin}
+            </button>
+          )}
+
+          <button onClick={handleLogout} className="btn btn-secondary btn-small">{t.logout}</button>
+        </div>
       </div>
 
       {/* Tab Navigation */}
@@ -194,22 +253,22 @@ export default function Library({ onOpenBook, showToast }) {
           className={`btn ${activeTab === "library" ? "btn-primary" : "btn-secondary"}`}
           style={{ flex: 1 }}
         >
-          📚 הספרייה שלי ({books.length})
+          📚 {t.myLibrary} ({books.length})
         </button>
         <button 
           onClick={() => setActiveTab("store")} 
           className={`btn ${activeTab === "store" ? "btn-primary" : "btn-secondary"}`}
           style={{ flex: 1 }}
         >
-          🛒 חנות הספרים ({catalog.length})
+          🛒 {t.bookstore} ({catalog.length})
         </button>
-        {isAdmin && (
+        {showAdminControls && (
           <button 
             onClick={() => setActiveTab("admin_db")} 
             className={`btn ${activeTab === "admin_db" ? "btn-primary" : "btn-secondary"}`}
             style={{ flex: 1, backgroundColor: activeTab === "admin_db" ? "#2c3e50" : "#fff", color: activeTab === "admin_db" ? "#fff" : "#2c3e50" }}
           >
-            🗄️ ניהול דאטהבייס (Admin DB)
+            🗄️ {t.adminDb}
           </button>
         )}
       </div>
@@ -217,24 +276,24 @@ export default function Library({ onOpenBook, showToast }) {
       {/* Device Linking Modal */}
       {showDeviceModal && (
         <div className="add-book-form glass-card" style={{ borderLeft: '4px solid var(--accent-color)' }}>
-          <h3>קישור סימנייה פיזית לחשבונך</h3>
+          <h3>{t.linkDeviceModalTitle}</h3>
           <p className="section-desc" style={{ fontSize: '0.9rem', marginBottom: '1rem' }}>
-            הזיני את מזהה המכשיר (Device ID / MAC Address) המוצג על מסך הסימנייה הפיזית שלך כדי לקשר אותה לחשבונך.
+            {t.linkDeviceDesc}
           </p>
           <form onSubmit={handleLinkDevice} className="form-row">
             <div className="form-group" style={{ flex: 2 }}>
-              <label>מזהה מכשיר / כתובת MAC</label>
+              <label>{t.deviceId}</label>
               <input 
                 type="text" 
                 value={deviceIdInput} 
                 onChange={(e) => setDeviceIdInput(e.target.value)} 
                 required 
-                placeholder="לדוגמה: BOOKMARK_01 או AA:BB:CC:11:22:33"
+                placeholder="BOOKMARK_01 / AA:BB:CC:11:22:33"
               />
             </div>
             <div className="form-group" style={{ flex: 1, justifyContent: 'flex-end' }}>
               <button disabled={deviceLoading} type="submit" className="btn btn-primary btn-block">
-                {deviceLoading ? "מקשר..." : "קשר סימנייה לחשבון"}
+                {deviceLoading ? "..." : t.linkBtn}
               </button>
             </div>
           </form>
@@ -242,55 +301,52 @@ export default function Library({ onOpenBook, showToast }) {
       )}
 
       {/* Admin Add Book Form Section */}
-      {isAdmin && activeTab === "store" && (
+      {showAdminControls && activeTab === "store" && (
         <div style={{ marginBottom: "2rem" }}>
           <button 
             onClick={() => setShowAdminForm(!showAdminForm)} 
             className="btn btn-primary"
             style={{ width: "100%", marginBottom: "1rem" }}
           >
-            {showAdminForm ? "סגור טופס מנהלת" : "👑 מנהלת החברה: הוסף ספר חדש לקטלוג החברה"}
+            {showAdminForm ? t.closeForm : t.adminAddBookBtn}
           </button>
 
           {showAdminForm && (
             <form onSubmit={handleAddCatalogBook} className="add-book-form glass-card">
-              <h3>הוספת ספר חדש לקטלוג החברה (Admin Only)</h3>
+              <h3>{t.addBookTitle}</h3>
               <div className="form-row">
                 <div className="form-group">
-                  <label>שם הספר</label>
+                  <label>{t.bookTitle}</label>
                   <input 
                     type="text" 
                     value={newTitle} 
                     onChange={(e) => setNewTitle(e.target.value)} 
                     required 
-                    placeholder="לדוגמה: הארי פוטר"
                   />
                 </div>
                 <div className="form-group">
-                  <label>שם המחבר</label>
+                  <label>{t.author}</label>
                   <input 
                     type="text" 
                     value={newAuthor} 
                     onChange={(e) => setNewAuthor(e.target.value)} 
                     required 
-                    placeholder="לדוגמה: ג'יי קיי רולינג"
                   />
                 </div>
                 <div className="form-group">
-                  <label>סה"כ עמודים</label>
+                  <label>{t.totalPages}</label>
                   <input 
                     type="number" 
                     min="1"
                     value={newTotalPages} 
                     onChange={(e) => setNewTotalPages(e.target.value)} 
                     required 
-                    placeholder="לדוגמה: 350"
                   />
                 </div>
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>מחיר</label>
+                  <label>{t.price}</label>
                   <input 
                     type="text" 
                     value={newPrice} 
@@ -299,7 +355,7 @@ export default function Library({ onOpenBook, showToast }) {
                   />
                 </div>
                 <div className="form-group" style={{ flex: 2 }}>
-                  <label>קישור לתמונת עטיפה (אופציונלי)</label>
+                  <label>{t.coverUrl}</label>
                   <input 
                     type="text" 
                     value={newCover} 
@@ -309,7 +365,7 @@ export default function Library({ onOpenBook, showToast }) {
                 </div>
               </div>
               <button disabled={addLoading} type="submit" className="btn btn-primary">
-                {addLoading ? "מוסיף לקטלוג..." : "פרסם ספר בחנות"}
+                {addLoading ? "..." : t.publishInStore}
               </button>
             </form>
           )}
@@ -321,17 +377,17 @@ export default function Library({ onOpenBook, showToast }) {
         /* MY LIBRARY VIEW */
         <section className="section library-section">
           <div className="section-header">
-            <h2>הספרייה שלי</h2>
-            <p className="section-desc">הספרים שרכשת. בחרי ספר כדי להמשיך לקרוא. התקדמות שבוצעה בסימנייה מסתנכרנת אוטומטית.</p>
+            <h2>{t.myLibrary}</h2>
+            <p className="section-desc">{t.myLibraryDesc}</p>
           </div>
 
           {loading ? (
-            <div className="loading-spinner">טוען ספרים אישיים... ⏳</div>
+            <div className="loading-spinner">... ⏳</div>
           ) : books.length === 0 ? (
             <div className="empty-library-state">
-              <p>עדיין לא רכשת ספרים. כנסי ל-<strong>"חנות הספרים"</strong> כדי לבחור את הספר הראשון שלך!</p>
+              <p>{t.emptyLibrary}</p>
               <button onClick={() => setActiveTab("store")} className="btn btn-primary" style={{ marginTop: "1rem" }}>
-                עבור לחנות הספרים 🛒
+                {t.goToStore}
               </button>
             </div>
           ) : (
@@ -344,11 +400,11 @@ export default function Library({ onOpenBook, showToast }) {
                 return (
                   <div key={book.bookId} className="book-card" onClick={() => onOpenBook(book.bookId, current)}>
                     <div className="cover-wrapper">
-                      <img src={book.cover} alt="עטיפת הספר" className="book-cover" onError={(e) => {
+                      <img src={book.cover} alt="Book Cover" className="book-cover" onError={(e) => {
                         e.target.src = "/assets/placeholder_cover.png";
                       }} />
                       <div className="card-overlay">
-                        <button className="btn btn-light btn-read">המשך לקרוא</button>
+                        <button className="btn btn-light btn-read">{t.continueReading}</button>
                       </div>
                     </div>
                     <div className="book-info">
@@ -358,7 +414,9 @@ export default function Library({ onOpenBook, showToast }) {
                         <div className="progress-bar-wrapper">
                           <div className="progress-bar" style={{ width: `${pct}%` }}></div>
                         </div>
-                        <span className="progress-text">עמוד {current} מתוך {total} ({pct}%)</span>
+                        <span className="progress-text">
+                          {t.pageOf.replace("{current}", current).replace("{total}", total)} ({pct}%)
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -371,12 +429,12 @@ export default function Library({ onOpenBook, showToast }) {
         /* BOOKSTORE / CATALOG VIEW */
         <section className="section library-section">
           <div className="section-header">
-            <h2>חנות הספרים של החברה</h2>
-            <p className="section-desc">קטלוג הספרים הרשמי. בחרי ספר לרכישה/הוספה לספרייה האישית שלך.</p>
+            <h2>{t.storeTitle}</h2>
+            <p className="section-desc">{t.storeDesc}</p>
           </div>
 
           {loading ? (
-            <div className="loading-spinner">טוען קטלוג ספרים... ⏳</div>
+            <div className="loading-spinner">... ⏳</div>
           ) : (
             <div className="books-grid">
               {catalog.map(book => {
@@ -385,7 +443,7 @@ export default function Library({ onOpenBook, showToast }) {
                 return (
                   <div key={book.bookId} className="book-card" style={{ cursor: 'default' }}>
                     <div className="cover-wrapper">
-                      <img src={book.cover} alt="עטיפת הספר" className="book-cover" onError={(e) => {
+                      <img src={book.cover} alt="Book Cover" className="book-cover" onError={(e) => {
                         e.target.src = "/assets/placeholder_cover.png";
                       }} />
                     </div>
@@ -394,16 +452,16 @@ export default function Library({ onOpenBook, showToast }) {
                       <p className="book-author">{book.author}</p>
                       <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0.5rem 0' }}>{book.description}</p>
                       
-                      <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.5rem' }}>
+                      <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', itemsCenter: 'center', paddingTop: '0.5rem' }}>
                         <span style={{ fontWeight: '800', color: 'var(--primary-color)', fontSize: '1.1rem' }}>{book.price || "₪49"}</span>
                         {isOwned ? (
-                          <span className="badge" style={{ backgroundColor: 'rgba(47, 133, 90, 0.15)', color: '#2f855a' }}>✓ כבר בספרייה שלך</span>
+                          <span className="badge" style={{ backgroundColor: 'rgba(47, 133, 90, 0.15)', color: '#2f855a' }}>{t.alreadyOwned}</span>
                         ) : (
                           <button 
                             onClick={() => handlePurchaseBook(book.bookId, book.title)} 
                             className="btn btn-primary btn-small"
                           >
-                            🛒 רכוש ספר
+                            {t.buyBook}
                           </button>
                         )}
                       </div>
@@ -418,24 +476,24 @@ export default function Library({ onOpenBook, showToast }) {
         /* ADMIN DATABASE VIEWER TAB */
         <section className="section library-section">
           <div className="section-header">
-            <h2>🗄️ מסד הנתונים החי של המערכת (Admin View)</h2>
-            <p className="section-desc">מבט מלא על כל המשתמשים הרשומים באתר, הספרים המשויכים לכל משתמש והתקדמות הקריאה שלהם בזמן אמת.</p>
+            <h2>{t.adminDbTitle}</h2>
+            <p className="section-desc">{t.adminDbDesc}</p>
           </div>
 
           {!adminDbData ? (
-            <div className="loading-spinner">טוען את מסד הנתונים... ⏳</div>
+            <div className="loading-spinner">... ⏳</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
               
               {/* 1. REGISTERED USERS TABLE */}
               <div className="glass-card" style={{ background: '#fff', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
-                <h3 style={{ marginBottom: '1rem', color: 'var(--primary-color)' }}>👥 משתמשים רשומים ({adminDbData.users.length})</h3>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+                <h3 style={{ marginBottom: '1rem', color: 'var(--primary-color)' }}>{t.registeredUsers} ({adminDbData.users.length})</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: lang === 'he' ? 'right' : 'left' }}>
                   <thead>
                     <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
-                      <th style={{ padding: '0.75rem' }}>אימייל</th>
-                      <th style={{ padding: '0.75rem' }}>מזהה משתמש (UID)</th>
-                      <th style={{ padding: '0.75rem' }}>תפקיד</th>
+                      <th style={{ padding: '0.75rem' }}>{t.email}</th>
+                      <th style={{ padding: '0.75rem' }}>{t.userUid}</th>
+                      <th style={{ padding: '0.75rem' }}>{t.role}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -445,7 +503,7 @@ export default function Library({ onOpenBook, showToast }) {
                         <td style={{ padding: '0.75rem', fontFamily: 'monospace' }}>{u.uid}</td>
                         <td style={{ padding: '0.75rem' }}>
                           <span className="badge" style={{ backgroundColor: u.role === 'admin' ? '#6b46c1' : '#e2e8f0', color: u.role === 'admin' ? '#fff' : '#1e293b' }}>
-                            {u.role === 'admin' ? '👑 מנהלת' : '👤 קורא'}
+                            {u.role === 'admin' ? t.adminRole : '👤 Reader'}
                           </span>
                         </td>
                       </tr>
@@ -456,16 +514,16 @@ export default function Library({ onOpenBook, showToast }) {
 
               {/* 2. USER BOOKS & READING PROGRESS TABLE */}
               <div className="glass-card" style={{ background: '#fff', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
-                <h3 style={{ marginBottom: '1rem', color: 'var(--primary-color)' }}>📖 ספרים והתקדמות קריאה לפי משתמש</h3>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+                <h3 style={{ marginBottom: '1rem', color: 'var(--primary-color)' }}>{t.userProgressTitle}</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: lang === 'he' ? 'right' : 'left' }}>
                   <thead>
                     <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
-                      <th style={{ padding: '0.75rem' }}>משתמש</th>
-                      <th style={{ padding: '0.75rem' }}>שם הספר</th>
-                      <th style={{ padding: '0.75rem' }}>מחבר</th>
-                      <th style={{ padding: '0.75rem' }}>עמוד נוכחי</th>
-                      <th style={{ padding: '0.75rem' }}>סה"כ עמודים</th>
-                      <th style={{ padding: '0.75rem' }}>אחוז השלמה</th>
+                      <th style={{ padding: '0.75rem' }}>{t.email}</th>
+                      <th style={{ padding: '0.75rem' }}>{t.bookTitle}</th>
+                      <th style={{ padding: '0.75rem' }}>{t.author}</th>
+                      <th style={{ padding: '0.75rem' }}>{t.currentPage}</th>
+                      <th style={{ padding: '0.75rem' }}>{t.totalPages}</th>
+                      <th style={{ padding: '0.75rem' }}>{t.completionPct}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -494,15 +552,15 @@ export default function Library({ onOpenBook, showToast }) {
 
               {/* 3. LINKED DEVICES TABLE */}
               <div className="glass-card" style={{ background: '#fff', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
-                <h3 style={{ marginBottom: '1rem', color: 'var(--primary-color)' }}>🔌 סימניות פיזיות מקושרות ({Object.keys(adminDbData.devices).length})</h3>
+                <h3 style={{ marginBottom: '1rem', color: 'var(--primary-color)' }}>{t.linkedDevicesTitle} ({Object.keys(adminDbData.devices).length})</h3>
                 {Object.keys(adminDbData.devices).length === 0 ? (
-                  <p style={{ color: 'var(--text-secondary)' }}>עדיין לא קושרו סימניות פיזיות במערכת.</p>
+                  <p style={{ color: 'var(--text-secondary)' }}>No devices linked yet.</p>
                 ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: lang === 'he' ? 'right' : 'left' }}>
                     <thead>
                       <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
-                        <th style={{ padding: '0.75rem' }}>מזהה סימנייה (Device ID / MAC)</th>
-                        <th style={{ padding: '0.75rem' }}>שייך למשתמש</th>
+                        <th style={{ padding: '0.75rem' }}>{t.deviceId}</th>
+                        <th style={{ padding: '0.75rem' }}>{t.belongsTo}</th>
                       </tr>
                     </thead>
                     <tbody>
