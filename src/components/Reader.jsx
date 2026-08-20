@@ -8,10 +8,21 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
   const [book, setBook] = useState(null);
   const [currentPage, setCurrentPage] = useState(initialPage || startPage || 1);
 
+  // Safe navigation back to library
   function handleBackNav() {
-    if (onBack) onBack();
-    else if (onClose) onClose();
+    try {
+      if (window.getSelection) {
+        window.getSelection().removeAllRanges();
+      }
+    } catch (e) {}
+    
+    if (typeof onBack === 'function') {
+      onBack();
+    } else if (typeof onClose === 'function') {
+      onClose();
+    }
   }
+
   const [loading, setLoading] = useState(true);
   const [isTurning, setIsTurning] = useState(false);
   
@@ -66,7 +77,6 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
       if (text.length > 2) {
         setSelectedText(text);
       } else {
-        // If selection cleared and bottom form isn't active yet, clear selection
         if (!showBottomForm) setSelectedText("");
       }
     }
@@ -97,8 +107,8 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
   }
 
   // Step 3: Submitting the bottom form
-  async function handleAddHighlightNote(e) {
-    e.preventDefault();
+  async function handleAddHighlightNote(e, returnToLibraryAfterSave = false) {
+    if (e) e.preventDefault();
     if (!newQuote.trim() && !newNoteText.trim()) return;
 
     try {
@@ -116,12 +126,15 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
       setSelectedText("");
       setShowBottomForm(false);
       
-      // Clear native text selection
       if (window.getSelection) {
         window.getSelection().removeAllRanges();
       }
 
       showToast(lang === "he" ? "הציטוט נשמר במחברת שלך!" : "Highlight saved to your journal!", "success");
+
+      if (returnToLibraryAfterSave) {
+        handleBackNav();
+      }
     } catch (err) {
       showToast(err.message || "Error saving note", "error");
     } finally {
@@ -164,7 +177,7 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
     <div className="reader-container" style={{ position: 'relative' }}>
       {/* Upper Navigation Bar */}
       <div className="reader-header">
-        <button onClick={handleBackNav} className="btn btn-secondary btn-small">
+        <button onClick={handleBackNav} className="btn btn-secondary btn-small" type="button">
           {t.backToLibrary}
         </button>
 
@@ -349,7 +362,7 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
             </button>
           </div>
 
-          <form onSubmit={handleAddHighlightNote}>
+          <form onSubmit={(e) => handleAddHighlightNote(e, false)}>
             <div className="form-group" style={{ marginBottom: '1rem' }}>
               <label style={{ fontSize: '0.9rem', fontWeight: '600' }}>💬 הציטוט שסומן (מועתק אוטומטית)</label>
               <textarea 
@@ -387,7 +400,7 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
               />
             </div>
 
-            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <button 
                 type="button" 
                 onClick={() => { setShowBottomForm(false); setSelectedText(""); }} 
@@ -395,8 +408,22 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
               >
                 ביטול
               </button>
-              <button disabled={noteSaving} type="submit" className="btn btn-primary btn-small">
-                {noteSaving ? "שומר..." : t.saveNoteBtn}
+              
+              <button 
+                disabled={noteSaving} 
+                type="submit" 
+                className="btn btn-secondary btn-small"
+              >
+                {noteSaving ? "שומר..." : "שמור בלבד"}
+              </button>
+
+              <button 
+                disabled={noteSaving} 
+                type="button" 
+                onClick={(e) => handleAddHighlightNote(e, true)}
+                className="btn btn-primary btn-small"
+              >
+                {noteSaving ? "שומר..." : "שמור וחזור לספרייה 📚"}
               </button>
             </div>
           </form>
@@ -406,9 +433,15 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
       {/* Saved Notes Section at the Bottom of Page */}
       {notes.length > 0 && (
         <div style={{ maxWidth: '900px', margin: '2.5rem auto 0' }}>
-          <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.2rem', color: 'var(--primary-slate)', marginBottom: '1rem' }}>
-            📓 ציטוטים והערות שמורות בספר זה ({notes.length})
-          </h4>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.2rem', color: 'var(--primary-slate)', margin: 0 }}>
+              📓 ציטוטים והערות שמורות בספר זה ({notes.length})
+            </h4>
+            <button onClick={handleBackNav} className="btn btn-secondary btn-small" type="button">
+              {t.backToLibrary}
+            </button>
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
             {notes.map(n => (
               <div key={n.noteId} style={{ background: '#fff', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '1rem', boxShadow: 'var(--shadow-sm)' }}>
