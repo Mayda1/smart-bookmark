@@ -6,16 +6,18 @@ import {
   addCatalogBook, 
   purchaseBook, 
   linkBookmarkDevice, 
-  getUserDevices 
+  getUserDevices,
+  getAdminDatabase
 } from "../dbHelper";
 import { useNavigate } from "react-router-dom";
 
 export default function Library({ onOpenBook, showToast }) {
   const { currentUser, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState("library"); // 'library' or 'store'
+  const [activeTab, setActiveTab] = useState("library"); // 'library', 'store', or 'admin_db'
   const [books, setBooks] = useState([]);
   const [catalog, setCatalog] = useState([]);
   const [linkedDevices, setLinkedDevices] = useState([]);
+  const [adminDbData, setAdminDbData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAdminForm, setShowAdminForm] = useState(false);
   const [showDeviceModal, setShowDeviceModal] = useState(false);
@@ -49,6 +51,12 @@ export default function Library({ onOpenBook, showToast }) {
       setBooks(booksData);
       setCatalog(catalogData);
       setLinkedDevices(devicesData);
+
+      if (isAdmin) {
+        const dbData = await getAdminDatabase(currentUser.email);
+        setAdminDbData(dbData);
+      }
+
       if (showNotification) {
         showToast("הנתונים עודכנו בהצלחה!", "success");
       }
@@ -96,6 +104,7 @@ export default function Library({ onOpenBook, showToast }) {
       setNewTotalPages("");
       setNewCover("");
       setNewDescription("");
+      loadData(false);
     } catch (err) {
       showToast(err.message || "שגיאה בהוספת הספר לקטלוג", "error");
     } finally {
@@ -110,6 +119,7 @@ export default function Library({ onOpenBook, showToast }) {
       setBooks(prev => [...prev, added]);
       showToast(`תתחדשי! הספר "${bookTitle}" נוסף לספרייה האישית שלך`, "success");
       setActiveTab("library");
+      loadData(false);
     } catch (err) {
       showToast(err.message || "שגיאה ברכישת הספר", "warning");
     }
@@ -127,11 +137,19 @@ export default function Library({ onOpenBook, showToast }) {
       showToast(`הסימנייה (מזהה: ${res.deviceId}) קושרה בהצלחה לחשבונך!`, "success");
       setDeviceIdInput("");
       setShowDeviceModal(false);
+      loadData(false);
     } catch (err) {
       showToast(err.message || "שגיאה בקישור המכשיר", "error");
     } finally {
       setDeviceLoading(false);
     }
+  }
+
+  // Map UID to User Email for Admin DB display
+  function getUserEmailByUid(uid) {
+    if (!adminDbData || !adminDbData.users) return uid;
+    const u = adminDbData.users.find(user => user.uid === uid);
+    return u ? u.email : uid;
   }
 
   return (
@@ -170,7 +188,7 @@ export default function Library({ onOpenBook, showToast }) {
       </div>
 
       {/* Tab Navigation */}
-      <div className="tabs-nav" style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
+      <div className="tabs-nav" style={{ display: 'flex', gap: '0.75rem', marginBottom: '2rem' }}>
         <button 
           onClick={() => setActiveTab("library")} 
           className={`btn ${activeTab === "library" ? "btn-primary" : "btn-secondary"}`}
@@ -183,8 +201,17 @@ export default function Library({ onOpenBook, showToast }) {
           className={`btn ${activeTab === "store" ? "btn-primary" : "btn-secondary"}`}
           style={{ flex: 1 }}
         >
-          🛒 חנות הספרים של החברה ({catalog.length})
+          🛒 חנות הספרים ({catalog.length})
         </button>
+        {isAdmin && (
+          <button 
+            onClick={() => setActiveTab("admin_db")} 
+            className={`btn ${activeTab === "admin_db" ? "btn-primary" : "btn-secondary"}`}
+            style={{ flex: 1, backgroundColor: activeTab === "admin_db" ? "#2c3e50" : "#fff", color: activeTab === "admin_db" ? "#fff" : "#2c3e50" }}
+          >
+            🗄️ ניהול דאטהבייס (Admin DB)
+          </button>
+        )}
       </div>
 
       {/* Device Linking Modal */}
@@ -277,7 +304,7 @@ export default function Library({ onOpenBook, showToast }) {
                     type="text" 
                     value={newCover} 
                     onChange={(e) => setNewCover(e.target.value)} 
-                    placeholder="assets/cover.jpg"
+                    placeholder="/assets/time_odyssey.jpg"
                   />
                 </div>
               </div>
@@ -340,7 +367,7 @@ export default function Library({ onOpenBook, showToast }) {
             </div>
           )}
         </section>
-      ) : (
+      ) : activeTab === "store" ? (
         /* BOOKSTORE / CATALOG VIEW */
         <section className="section library-section">
           <div className="section-header">
@@ -384,6 +411,112 @@ export default function Library({ onOpenBook, showToast }) {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </section>
+      ) : (
+        /* ADMIN DATABASE VIEWER TAB */
+        <section className="section library-section">
+          <div className="section-header">
+            <h2>🗄️ מסד הנתונים החי של המערכת (Admin View)</h2>
+            <p className="section-desc">מבט מלא על כל המשתמשים הרשומים באתר, הספרים המשויכים לכל משתמש והתקדמות הקריאה שלהם בזמן אמת.</p>
+          </div>
+
+          {!adminDbData ? (
+            <div className="loading-spinner">טוען את מסד הנתונים... ⏳</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              
+              {/* 1. REGISTERED USERS TABLE */}
+              <div className="glass-card" style={{ background: '#fff', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
+                <h3 style={{ marginBottom: '1rem', color: 'var(--primary-color)' }}>👥 משתמשים רשומים ({adminDbData.users.length})</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
+                      <th style={{ padding: '0.75rem' }}>אימייל</th>
+                      <th style={{ padding: '0.75rem' }}>מזהה משתמש (UID)</th>
+                      <th style={{ padding: '0.75rem' }}>תפקיד</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {adminDbData.users.map(u => (
+                      <tr key={u.uid} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '0.75rem', fontWeight: '700' }}>{u.email}</td>
+                        <td style={{ padding: '0.75rem', fontFamily: 'monospace' }}>{u.uid}</td>
+                        <td style={{ padding: '0.75rem' }}>
+                          <span className="badge" style={{ backgroundColor: u.role === 'admin' ? '#6b46c1' : '#e2e8f0', color: u.role === 'admin' ? '#fff' : '#1e293b' }}>
+                            {u.role === 'admin' ? '👑 מנהלת' : '👤 קורא'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* 2. USER BOOKS & READING PROGRESS TABLE */}
+              <div className="glass-card" style={{ background: '#fff', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
+                <h3 style={{ marginBottom: '1rem', color: 'var(--primary-color)' }}>📖 ספרים והתקדמות קריאה לפי משתמש</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
+                      <th style={{ padding: '0.75rem' }}>משתמש</th>
+                      <th style={{ padding: '0.75rem' }}>שם הספר</th>
+                      <th style={{ padding: '0.75rem' }}>מחבר</th>
+                      <th style={{ padding: '0.75rem' }}>עמוד נוכחי</th>
+                      <th style={{ padding: '0.75rem' }}>סה"כ עמודים</th>
+                      <th style={{ padding: '0.75rem' }}>אחוז השלמה</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(adminDbData.progress).flatMap(([uid, userBooks]) => 
+                      userBooks.map(b => {
+                        const pct = Math.round(((b.currentPage || 1) / b.totalPages) * 100);
+                        return (
+                          <tr key={uid + "_" + b.bookId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '0.75rem', fontWeight: '700' }}>{getUserEmailByUid(uid)}</td>
+                            <td style={{ padding: '0.75rem' }}>{b.title}</td>
+                            <td style={{ padding: '0.75rem' }}>{b.author}</td>
+                            <td style={{ padding: '0.75rem', fontWeight: '800', color: 'var(--primary-color)' }}>{b.currentPage || 1}</td>
+                            <td style={{ padding: '0.75rem' }}>{b.totalPages}</td>
+                            <td style={{ padding: '0.75rem' }}>
+                              <span className="badge" style={{ backgroundColor: 'rgba(107, 70, 193, 0.12)', color: 'var(--primary-color)' }}>
+                                {pct}%
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* 3. LINKED DEVICES TABLE */}
+              <div className="glass-card" style={{ background: '#fff', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
+                <h3 style={{ marginBottom: '1rem', color: 'var(--primary-color)' }}>🔌 סימניות פיזיות מקושרות ({Object.keys(adminDbData.devices).length})</h3>
+                {Object.keys(adminDbData.devices).length === 0 ? (
+                  <p style={{ color: 'var(--text-secondary)' }}>עדיין לא קושרו סימניות פיזיות במערכת.</p>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
+                        <th style={{ padding: '0.75rem' }}>מזהה סימנייה (Device ID / MAC)</th>
+                        <th style={{ padding: '0.75rem' }}>שייך למשתמש</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(adminDbData.devices).map(([devId, uid]) => (
+                        <tr key={devId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '0.75rem', fontFamily: 'monospace', fontWeight: '700' }}>{devId}</td>
+                          <td style={{ padding: '0.75rem' }}>{getUserEmailByUid(uid)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
             </div>
           )}
         </section>

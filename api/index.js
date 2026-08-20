@@ -138,7 +138,31 @@ app.post('/api/auth/login', (req, res) => {
   }
 });
 
-// 3. Get Global Books Catalog (For Bookstore)
+// 3. Admin Raw Database Inspection Endpoint
+app.get('/api/admin/db', (req, res) => {
+  try {
+    const { userEmail } = req.query;
+    const normalizedEmail = (userEmail || "").toLowerCase().trim();
+
+    if (!ADMIN_EMAILS.includes(normalizedEmail)) {
+      return res.status(403).json({ error: "הרשאת מנהלת בלבד" });
+    }
+
+    const dbData = readDB();
+    // Return sanitized database without plain passwords
+    const sanitizedUsers = dbData.users.map(({ password, ...rest }) => rest);
+    return res.json({
+      users: sanitizedUsers,
+      progress: dbData.progress,
+      devices: dbData.devices,
+      catalog: dbData.catalog
+    });
+  } catch (err) {
+    return res.status(500).json({ error: "שגיאה בשליפת הדאטהבייס" });
+  }
+});
+
+// 4. Get Global Books Catalog (For Bookstore)
 app.get('/api/catalog', (req, res) => {
   try {
     const dbData = readDB();
@@ -148,14 +172,14 @@ app.get('/api/catalog', (req, res) => {
   }
 });
 
-// 4. Admin Add Book to Global Catalog
+// 5. Admin Add Book to Global Catalog
 app.post('/api/catalog', (req, res) => {
   try {
     const { userEmail, title, author, totalPages, cover, price, description } = req.body || {};
     const normalizedEmail = (userEmail || "").toLowerCase().trim();
 
     if (!ADMIN_EMAILS.includes(normalizedEmail)) {
-      return res.status(403).json({ error: "הרשאת מנהלת בלבד. אין ל משתמש זה הרשאה להוסיף ספרים לקטלוג" });
+      return res.status(403).json({ error: "הרשאת מנהלת בלבד" });
     }
 
     if (!title || !author || !totalPages) {
@@ -181,7 +205,7 @@ app.post('/api/catalog', (req, res) => {
   }
 });
 
-// 5. User Purchase / Claim Book from Catalog
+// 6. User Purchase / Claim Book from Catalog
 app.post('/api/user/purchase', (req, res) => {
   try {
     const { userId, bookId } = req.body || {};
@@ -199,7 +223,6 @@ app.post('/api/user/purchase', (req, res) => {
       dbData.progress[userId] = [];
     }
 
-    // Check if user already owns this book
     const existing = dbData.progress[userId].find(b => b.bookId === bookId);
     if (existing) {
       return res.status(400).json({ error: "הספר כבר קיים בספרייה האישית שלך!" });
@@ -218,7 +241,7 @@ app.post('/api/user/purchase', (req, res) => {
   }
 });
 
-// 6. Get user's purchased books
+// 7. Get user's purchased books
 app.get('/api/books', (req, res) => {
   try {
     const { userId } = req.query;
@@ -228,7 +251,6 @@ app.get('/api/books', (req, res) => {
 
     const dbData = readDB();
     
-    // If user progress record doesn't exist, create it with seed data
     if (!dbData.progress[userId]) {
       dbData.progress[userId] = [dbData.catalog[0]];
       writeDB(dbData);
@@ -240,7 +262,7 @@ app.get('/api/books', (req, res) => {
   }
 });
 
-// 7. Link Bookmark Device (Option A)
+// 8. Link Bookmark Device (Option A)
 app.post('/api/devices/link', (req, res) => {
   try {
     const { userId, deviceId } = req.body || {};
@@ -259,7 +281,7 @@ app.post('/api/devices/link', (req, res) => {
   }
 });
 
-// 8. Get linked devices for a user
+// 9. Get linked devices for a user
 app.get('/api/devices', (req, res) => {
   try {
     const { userId } = req.query;
@@ -273,7 +295,7 @@ app.get('/api/devices', (req, res) => {
   }
 });
 
-// 9. Update reading progress
+// 10. Update reading progress
 app.post('/api/update-progress', (req, res) => {
   try {
     let { userId, deviceId, bookId, currentPage } = req.body || {};
@@ -284,7 +306,7 @@ app.post('/api/update-progress', (req, res) => {
       const cleanDeviceId = deviceId.trim().toUpperCase();
       userId = dbData.devices[cleanDeviceId];
       if (!userId) {
-        return res.status(404).json({ error: `המכשיר ${cleanDeviceId} עדיין לא קושר לשום חשבון משתמש באתר` });
+        return res.status(404).json({ error: `המכשיר ${cleanDeviceId} עדיין לא קושר לשום לחשבון משתמש באתר` });
       }
     }
 

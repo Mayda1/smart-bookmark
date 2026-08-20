@@ -7,7 +7,15 @@ async function parseResponse(response) {
   throw new Error(text || "שגיאת תקשורת עם השרת");
 }
 
-// 1. Get Global Catalog (Bookstore)
+// 1. Admin: Get full raw database (Users, Books per User, Linked Devices)
+export async function getAdminDatabase(userEmail) {
+  const response = await fetch(`/api/admin/db?userEmail=${encodeURIComponent(userEmail)}`);
+  const data = await parseResponse(response);
+  if (!response.ok) throw new Error(data.error || "שגיאה בשליפת הדאטהבייס");
+  return data;
+}
+
+// 2. Get Global Catalog (Bookstore)
 export async function getCatalog() {
   const response = await fetch("/api/catalog");
   const data = await parseResponse(response);
@@ -15,7 +23,7 @@ export async function getCatalog() {
   return data;
 }
 
-// 2. Admin: Add book to global catalog
+// 3. Admin: Add book to global catalog
 export async function addCatalogBook(userEmail, bookDetails) {
   const response = await fetch("/api/catalog", {
     method: "POST",
@@ -35,7 +43,7 @@ export async function addCatalogBook(userEmail, bookDetails) {
   return data;
 }
 
-// 3. User: Purchase / Claim book from catalog to personal library
+// 4. User: Purchase / Claim book from catalog to personal library
 export async function purchaseBook(userId, bookId) {
   const response = await fetch("/api/user/purchase", {
     method: "POST",
@@ -47,7 +55,7 @@ export async function purchaseBook(userId, bookId) {
   return data;
 }
 
-// 4. Get all books in user's personal library
+// 5. Get all books in user's personal library
 export async function getUserBooks(userId) {
   const response = await fetch(`/api/books?userId=${encodeURIComponent(userId)}`);
   const data = await parseResponse(response);
@@ -55,7 +63,7 @@ export async function getUserBooks(userId) {
   return data;
 }
 
-// 5. Update progress of a specific book
+// 6. Update progress of a specific book
 export async function updateBookProgress(userId, bookId, pageNumber) {
   const response = await fetch("/api/update-progress", {
     method: "POST",
@@ -71,7 +79,7 @@ export async function updateBookProgress(userId, bookId, pageNumber) {
   return data;
 }
 
-// 6. Link Bookmark Device ID
+// 7. Link Bookmark Device ID
 export async function linkBookmarkDevice(userId, deviceId) {
   const response = await fetch("/api/devices/link", {
     method: "POST",
@@ -83,7 +91,7 @@ export async function linkBookmarkDevice(userId, deviceId) {
   return data;
 }
 
-// 7. Get user linked devices
+// 8. Get user linked devices
 export async function getUserDevices(userId) {
   const response = await fetch(`/api/devices?userId=${encodeURIComponent(userId)}`);
   const data = await parseResponse(response);
