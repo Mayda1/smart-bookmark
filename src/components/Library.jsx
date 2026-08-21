@@ -28,6 +28,7 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
   const [showAdminForm, setShowAdminForm] = useState(false);
   const [showDeviceModal, setShowDeviceModal] = useState(false);
   const [showNoteForm, setShowNoteForm] = useState(false);
+  const [storeSubTab, setStoreSubTab] = useState("recommendations"); // 'recommendations' or 'browse'
 
   // Language state
   const [lang, setLang] = useState(() => localStorage.getItem("app_lang") || "he");
@@ -428,9 +429,303 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
             <p className="section-desc">{t.storeDesc}</p>
           </div>
 
+          {/* Store Sub-Tabs */}
+          <div style={{
+            display: 'flex',
+            gap: '0.5rem',
+            marginBottom: '1.5rem',
+            background: 'var(--surface-card)',
+            borderRadius: '12px',
+            padding: '5px',
+            border: '1px solid var(--border-subtle)'
+          }}>
+            <button
+              onClick={() => setStoreSubTab("recommendations")}
+              style={{
+                flex: 1,
+                padding: '0.65rem 1rem',
+                border: 'none',
+                borderRadius: '9px',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+                fontWeight: '600',
+                fontFamily: 'var(--font-sans)',
+                transition: 'all 0.2s ease',
+                background: storeSubTab === "recommendations"
+                  ? 'linear-gradient(135deg, #f8e8c8, #f0d8a8)'
+                  : 'transparent',
+                color: storeSubTab === "recommendations"
+                  ? 'var(--primary-slate)'
+                  : 'var(--text-secondary)',
+                boxShadow: storeSubTab === "recommendations"
+                  ? '0 2px 8px rgba(0,0,0,0.08)'
+                  : 'none'
+              }}
+            >
+              {t.storeSubTabRecommendations}
+            </button>
+            <button
+              onClick={() => setStoreSubTab("browse")}
+              style={{
+                flex: 1,
+                padding: '0.65rem 1rem',
+                border: 'none',
+                borderRadius: '9px',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+                fontWeight: '600',
+                fontFamily: 'var(--font-sans)',
+                transition: 'all 0.2s ease',
+                background: storeSubTab === "browse"
+                  ? 'linear-gradient(135deg, #f8e8c8, #f0d8a8)'
+                  : 'transparent',
+                color: storeSubTab === "browse"
+                  ? 'var(--primary-slate)'
+                  : 'var(--text-secondary)',
+                boxShadow: storeSubTab === "browse"
+                  ? '0 2px 8px rgba(0,0,0,0.08)'
+                  : 'none'
+              }}
+            >
+              {t.storeSubTabBrowse}
+            </button>
+          </div>
+
           {loading ? (
             <div className="loading-spinner">... ⏳</div>
+          ) : storeSubTab === "recommendations" ? (
+            /* PERSONALIZED RECOMMENDATIONS SUB-TAB */
+            (() => {
+              // Demo AI recommendations engine
+              const demoRecommendations = [
+                {
+                  id: "rec_1",
+                  title: "מסע אל תוך הדממה",
+                  author: "נועה שלום",
+                  cover: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=300&h=450&fit=crop",
+                  price: "₪42",
+                  description: "מסע פנימי של גילוי עצמי דרך מדיטציה, שקט ושהייה בטבע.",
+                  matchScore: 94,
+                  reason: lang === "he"
+                    ? "מבוסס על הציטוטים שסימנת על זמן, מרחב ותודעה — ספר זה מרחיב את העולמות הפילוסופיים שמשכו אותך."
+                    : "Based on your highlighted quotes about time, space, and consciousness — this book deepens the philosophical themes you enjoy."
+                },
+                {
+                  id: "rec_2",
+                  title: "גשר מעל ערפל",
+                  author: "דניאל ברקוביץ׳",
+                  cover: "https://images.unsplash.com/photo-1512820790803-83ca734da794?w=300&h=450&fit=crop",
+                  price: "₪55",
+                  description: "רומן מתח פילוסופי על פרופסור שמגלה כתב יד עתיק שמאתגר את תפיסת המציאות.",
+                  matchScore: 89,
+                  reason: lang === "he"
+                    ? "סגנון הכתיבה דומה לספרים שאהבת, עם שילוב של עלילה מרתקת ושאלות פילוסופיות עמוקות."
+                    : "Similar writing style to books you loved, combining compelling plot with deep philosophical questions."
+                },
+                {
+                  id: "rec_3",
+                  title: "אור בין השורות",
+                  author: "מיכל אורן",
+                  cover: "https://images.unsplash.com/photo-1476275466078-4007374efbbe?w=300&h=450&fit=crop",
+                  price: "₪38",
+                  description: "אוסף סיפורים קצרים על רגעי הארה קטנים שמשנים את מהלך החיים.",
+                  matchScore: 85,
+                  reason: lang === "he"
+                    ? "קוראים שאהבו את הספרים בספרייה שלך נהנו במיוחד מהאוסף הזה — 87% מהם דירגו אותו 5 כוכבים."
+                    : "Readers who enjoyed books in your library especially loved this collection — 87% rated it 5 stars."
+                },
+                {
+                  id: "rec_4",
+                  title: "הנוסע האחרון",
+                  author: "יונתן גלעד",
+                  cover: "https://images.unsplash.com/photo-1495446815901-a7297e633e8d?w=300&h=450&fit=crop",
+                  price: "₪49",
+                  description: "סיפור מופלא על מסע בזמן, אהבה ובחירות שמעצבות גורלות.",
+                  matchScore: 82,
+                  reason: lang === "he"
+                    ? "בהתבסס על העניין שלך בנושאי זמן ומרחב — הספר הזה לוקח את המוטיבים האלה לסיפור הרפתקאות סוחף."
+                    : "Based on your interest in time and space themes — this book turns these motifs into a thrilling adventure story."
+                },
+                {
+                  id: "rec_5",
+                  title: "צלילים של שקיעה",
+                  author: "רותם כהן-צדק",
+                  cover: "https://images.unsplash.com/photo-1524578271613-d550eacf6090?w=300&h=450&fit=crop",
+                  price: "₪44",
+                  description: "שירה ופרוזה על חיבור לטבע, מוזיקה ורגעי שלווה בעולם סוער.",
+                  matchScore: 78,
+                  reason: lang === "he"
+                    ? "הציטוטים שסימנת מגלים רגישות לשפה יפה ולתיאורי טבע — הספר הזה ידבר אל הלב שלך."
+                    : "Your highlighted quotes reveal a sensitivity to beautiful language and nature descriptions — this book will speak to your heart."
+                }
+              ];
+
+              const hasBooks = books.length > 0;
+
+              return (
+                <div>
+                  {/* Recommendations Header */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '1.25rem'
+                  }}>
+                    <h3 style={{
+                      fontFamily: 'var(--font-serif)',
+                      fontSize: '1.2rem',
+                      color: 'var(--primary-slate)',
+                      margin: 0
+                    }}>
+                      {t.recsTitle}
+                    </h3>
+                    <span style={{
+                      fontSize: '0.8rem',
+                      color: 'var(--accent-sand)',
+                      fontWeight: '600',
+                      background: 'linear-gradient(135deg, #fdf6e8, #f8e8c8)',
+                      padding: '4px 12px',
+                      borderRadius: '20px',
+                      border: '1px solid rgba(210,180,130,0.3)'
+                    }}>
+                      {t.recsPoweredBy}
+                    </span>
+                  </div>
+
+                  {!hasBooks ? (
+                    <div className="empty-library-state" style={{ marginTop: '1.5rem' }}>
+                      <p style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>📚</p>
+                      <p>{t.recsEmpty}</p>
+                      <button onClick={() => setStoreSubTab("browse")} className="btn btn-primary" style={{ marginTop: '1rem' }}>
+                        {t.storeSubTabBrowse}
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                      gap: '1.25rem'
+                    }}>
+                      {demoRecommendations.map(rec => {
+                        const isOwned = books.some(b => b.title === rec.title);
+
+                        return (
+                          <div
+                            key={rec.id}
+                            style={{
+                              background: 'var(--surface-card)',
+                              border: '1px solid var(--border-subtle)',
+                              borderRadius: '16px',
+                              overflow: 'hidden',
+                              boxShadow: 'var(--shadow-sm)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.transform = 'translateY(-3px)';
+                              e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.1)';
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.transform = 'translateY(0)';
+                              e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
+                            }}
+                          >
+                            {/* Cover */}
+                            <div style={{ position: 'relative', height: '180px', overflow: 'hidden' }}>
+                              <img
+                                src={rec.cover}
+                                alt={rec.title}
+                                style={{
+                                  width: '100%',
+                                  height: '100%',
+                                  objectFit: 'cover',
+                                  filter: 'brightness(0.92)'
+                                }}
+                                onError={(e) => { e.target.src = "/assets/placeholder_cover.png"; }}
+                              />
+                              {/* Match Score Badge */}
+                              <div style={{
+                                position: 'absolute',
+                                top: '10px',
+                                left: '10px',
+                                background: 'rgba(255,255,255,0.92)',
+                                backdropFilter: 'blur(6px)',
+                                borderRadius: '10px',
+                                padding: '4px 10px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.12)'
+                              }}>
+                                <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#b8860b' }}>
+                                  {t.recsMatchScore}
+                                </span>
+                                <span style={{
+                                  fontSize: '0.85rem',
+                                  fontWeight: '800',
+                                  color: rec.matchScore >= 90 ? '#2e7d32' : rec.matchScore >= 80 ? '#b8860b' : '#666'
+                                }}>
+                                  {rec.matchScore}%
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Info */}
+                            <div style={{ padding: '1rem 1.15rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                              <h4 style={{
+                                fontFamily: 'var(--font-serif)',
+                                fontSize: '1.05rem',
+                                color: 'var(--primary-slate)',
+                                margin: '0 0 0.2rem'
+                              }}>
+                                {rec.title}
+                              </h4>
+                              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0 0 0.5rem' }}>
+                                {rec.author}
+                              </p>
+                              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0 0 0.75rem', lineHeight: '1.5' }}>
+                                {rec.description}
+                              </p>
+
+                              {/* AI Reason */}
+                              <div style={{
+                                background: 'linear-gradient(135deg, #fdf8ef, #f6edd8)',
+                                border: '1px solid rgba(210,180,130,0.25)',
+                                borderRadius: '10px',
+                                padding: '0.65rem 0.85rem',
+                                marginBottom: '0.75rem'
+                              }}>
+                                <p style={{ fontSize: '0.72rem', fontWeight: '700', color: '#b8860b', margin: '0 0 0.3rem', letterSpacing: '0.3px' }}>
+                                  🤖 {t.recsWhyLabel}
+                                </p>
+                                <p style={{ fontSize: '0.8rem', color: 'var(--primary-slate)', margin: 0, lineHeight: '1.55', fontStyle: 'italic' }}>
+                                  {rec.reason}
+                                </p>
+                              </div>
+
+                              {/* Price & Action */}
+                              <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.4rem' }}>
+                                <span style={{ fontWeight: '700', color: 'var(--primary-slate)', fontSize: '1.05rem' }}>{rec.price}</span>
+                                {isOwned ? (
+                                  <span className="badge badge-linked">{t.alreadyOwned}</span>
+                                ) : (
+                                  <button className="btn btn-primary btn-small">
+                                    {t.buyBook}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()
           ) : (
+            /* BROWSE ALL CATALOG SUB-TAB */
             <div className="books-grid">
               {catalog.map(book => {
                 const isOwned = books.some(b => b.bookId === book.bookId);

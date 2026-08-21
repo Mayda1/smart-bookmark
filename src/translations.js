@@ -52,7 +52,7 @@ export const translations = {
     theme: "ערכת נושא",
     backToLibrary: "← חזרה לספרייה",
     
-    // Notes & Highlights Translations
+    // Notes & Highlights
     notesTitle: "📓 מחברת הציטוטים וההערות שלי",
     notesDesc: "כל הציטוטים, הרעיונות והמחשבות האישיות ששמרת לעצמך במהלך הקריאה.",
     addNoteBtn: "✍️ שמור ציטוט / הערה חדשה",
@@ -62,7 +62,17 @@ export const translations = {
     saveNoteBtn: "שמור במחברת",
     emptyNotes: "עדיין לא שמרת ציטוטים או הערות. את יכולה להוסיף ציטוטים והערות בזמן הקריאה או כאן במחברת!",
     pageTag: "עמוד",
-    deleteBtn: "מחק"
+    deleteBtn: "מחק",
+
+    // Store Sub-Tabs & Recommendations
+    storeSubTabRecommendations: "✨ מותאם אישית",
+    storeSubTabBrowse: "📚 עיון בקטלוג",
+    recsTitle: "המלצות בהתאמה אישית",
+    recsDesc: "ספרים שנבחרו עבורך על סמך הספרים שקראת, הציטוטים ששמרת וטעמך האישי.",
+    recsPoweredBy: "מבוסס AI ✨",
+    recsWhyLabel: "למה מומלץ עבורך:",
+    recsEmpty: "קראי עוד ספרים כדי שנוכל ליצור המלצות מותאמות אישית עבורך!",
+    recsMatchScore: "התאמה"
   },
   en: {
     appName: "Smart Bookmark",
@@ -117,7 +127,7 @@ export const translations = {
     theme: "Theme",
     backToLibrary: "← Back to Library",
     
-    // Notes & Highlights Translations
+    // Notes & Highlights
     notesTitle: "📓 My Reading Journal & Highlights",
     notesDesc: "All quotes, ideas, and personal reflections saved while reading.",
     addNoteBtn: "✍️ Save New Quote / Note",
@@ -127,6 +137,16 @@ export const translations = {
     saveNoteBtn: "Save to Journal",
     emptyNotes: "No saved quotes or notes yet. You can add notes while reading or directly here in your journal!",
     pageTag: "Page",
-    deleteBtn: "Delete"
+    deleteBtn: "Delete",
+
+    // Store Sub-Tabs & Recommendations
+    storeSubTabRecommendations: "✨ For You",
+    storeSubTabBrowse: "📚 Browse All",
+    recsTitle: "Personalized Recommendations",
+    recsDesc: "Books selected for you based on what you've read, your saved quotes, and your personal taste.",
+    recsPoweredBy: "Powered by AI ✨",
+    recsWhyLabel: "Why this was recommended:",
+    recsEmpty: "Read more books so we can create personalized recommendations for you!",
+    recsMatchScore: "Match"
   }
 };
