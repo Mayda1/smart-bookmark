@@ -498,6 +498,19 @@ html[dir="ltr"] .form-group {
     margin: 0 auto;
 }
 
+@media (max-width: 768px) {
+    .book-container {
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+}
+
+@media (max-width: 480px) {
+    .book-container {
+        gap: 0.35rem;
+    }
+}
+
 .book-page-viewport {
     flex-grow: 1;
     background: #fbf9f5;
@@ -510,18 +523,375 @@ html[dir="ltr"] .form-group {
     border-left: 6px solid #e0d9cb;
 }
 
-/* Responsive */
+/* ========================================
+   RESPONSIVE MOBILE DESIGN
+   ======================================== */
+
+/* Tablet */
 @media (max-width: 768px) {
+    .library-container {
+        padding: 1.25rem 1rem;
+    }
+
     .main-header {
         flex-direction: column;
-        gap: 1rem;
+        gap: 0.75rem;
         text-align: center;
+        padding: 0.85rem 1rem;
+        border-radius: 12px;
+        margin-bottom: 1.25rem;
     }
+
+    .logo-area h1 {
+        font-size: 1.35rem;
+    }
+
+    .connection-panel {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+
     .user-profile-bar {
         flex-direction: column;
-        gap: 0.75rem;
+        gap: 0.6rem;
+        padding: 0.75rem 1rem;
+        text-align: center;
     }
+
+    .user-info-text {
+        flex-direction: column;
+        gap: 0.4rem;
+    }
+
+    .tabs-nav {
+        gap: 0.25rem;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        padding-bottom: 0.4rem;
+    }
+
+    .tabs-nav::-webkit-scrollbar {
+        display: none;
+    }
+
+    .tab-btn {
+        font-size: 0.88rem;
+        padding: 0.5rem 0.85rem;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .section-header h2 {
+        font-size: 1.4rem;
+    }
+
+    .section-desc {
+        font-size: 0.9rem;
+    }
+
+    .books-grid {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 1rem;
+    }
+
+    .book-title {
+        font-size: 0.95rem;
+    }
+
+    .book-info {
+        padding: 0.85rem;
+    }
+
     .form-row {
         flex-direction: column;
+    }
+
+    .add-book-form {
+        padding: 1.15rem;
+    }
+
+    /* Reader */
+    .reader-header {
+        flex-direction: column;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        text-align: center;
+        border-radius: 10px;
+        margin-bottom: 1rem;
+    }
+
+    .reader-header h2 {
+        font-size: 1.1rem;
+    }
+
+    .accessibility-toolbar {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.4rem;
+    }
+
+    .book-page-viewport {
+        padding: 1.5rem 1.25rem;
+        aspect-ratio: auto;
+        min-height: 50vh;
+        max-width: 100%;
+        border-radius: 4px 12px 12px 4px;
+        border-left-width: 4px;
+    }
+
+    .nav-page-btn {
+        padding: 0.4rem 0.6rem;
+        font-size: 1.1rem;
+        min-width: 36px;
+    }
+
+    .section-header-flex {
+        flex-direction: column;
+        gap: 0.75rem;
+        align-items: stretch !important;
+    }
+
+    /* Quote save button: hide side, show mobile bottom */
+    .quote-save-side-btn {
+        display: none !important;
+    }
+
+    .quote-save-mobile-btn {
+        display: flex !important;
+    }
+
+    /* Reader canvas container */
+    .reader-container {
+        padding: 0 0.25rem;
+    }
+}
+
+/* Mobile Small */
+@media (max-width: 480px) {
+    .library-container {
+        padding: 1rem 0.65rem;
+    }
+
+    .main-header {
+        padding: 0.75rem 0.85rem;
+        gap: 0.6rem;
+        border-radius: 10px;
+        margin-bottom: 1rem;
+    }
+
+    .logo-area .icon {
+        font-size: 1.4rem;
+    }
+
+    .logo-area h1 {
+        font-size: 1.15rem;
+    }
+
+    .connection-panel {
+        gap: 0.35rem;
+    }
+
+    .btn {
+        font-size: 0.82rem;
+        padding: 0.5rem 0.9rem;
+        border-radius: 8px;
+    }
+
+    .btn-small {
+        padding: 0.35rem 0.65rem;
+        font-size: 0.78rem;
+    }
+
+    .lang-btn {
+        font-size: 0.78rem;
+        padding: 0.3rem 0.65rem;
+    }
+
+    .user-profile-bar {
+        padding: 0.65rem 0.85rem;
+        margin-bottom: 1rem;
+        border-radius: 10px;
+    }
+
+    .tabs-nav {
+        gap: 0.15rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .tab-btn {
+        font-size: 0.8rem;
+        padding: 0.45rem 0.65rem;
+    }
+
+    .section-header {
+        margin-bottom: 1.25rem;
+    }
+
+    .section-header h2 {
+        font-size: 1.2rem;
+    }
+
+    .section-desc {
+        font-size: 0.85rem;
+    }
+
+    .books-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+    }
+
+    .book-card {
+        border-radius: 10px;
+    }
+
+    .book-title {
+        font-size: 0.85rem;
+    }
+
+    .book-author {
+        font-size: 0.8rem;
+    }
+
+    .book-info {
+        padding: 0.7rem;
+        gap: 0.2rem;
+    }
+
+    .progress-text {
+        font-size: 0.7rem;
+    }
+
+    .badge {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.5rem;
+    }
+
+    .empty-library-state {
+        padding: 2rem 1rem;
+    }
+
+    .add-book-form {
+        padding: 1rem;
+        border-radius: 12px;
+        margin-bottom: 1.25rem;
+    }
+
+    .auth-card {
+        padding: 1.5rem;
+        border-radius: 14px;
+        margin: 0 0.5rem;
+    }
+
+    /* Reader Mobile */
+    .reader-header {
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0.65rem 0.75rem;
+        margin-bottom: 0.75rem;
+        border-radius: 8px;
+    }
+
+    .reader-header h2 {
+        font-size: 0.95rem;
+    }
+
+    .reader-header p {
+        font-size: 0.8rem;
+    }
+
+    .accessibility-toolbar {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.3rem;
+    }
+
+    .btn-icon-control {
+        font-size: 0.8rem;
+        padding: 0.3rem 0.55rem;
+    }
+
+    .btn-text-control {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.55rem;
+    }
+
+    .theme-dot {
+        width: 20px;
+        height: 20px;
+    }
+
+    .book-page-viewport {
+        padding: 1.15rem 1rem;
+        aspect-ratio: auto;
+        min-height: 45vh;
+        border-radius: 4px 10px 10px 4px;
+        border-left-width: 3px;
+    }
+
+    .page-text-content {
+        font-size: 15px !important;
+    }
+
+    .page-decor-header {
+        font-size: 0.7rem !important;
+        margin-bottom: 0.75rem !important;
+    }
+
+    .page-footer {
+        font-size: 0.75rem !important;
+    }
+
+    .nav-page-btn {
+        padding: 0.35rem 0.5rem;
+        font-size: 1rem;
+        min-width: 32px;
+        border-radius: 8px;
+    }
+
+    /* Card overlay always visible on touch */
+    .card-overlay {
+        opacity: 0;
+    }
+
+    /* Quote save button mobile */
+    .quote-save-side-btn {
+        display: none !important;
+    }
+
+    .quote-save-mobile-btn {
+        display: flex !important;
+    }
+
+    .reader-container {
+        padding: 0 0.15rem;
+    }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+    .book-card:hover {
+        transform: none;
+    }
+
+    .book-card:hover .book-cover {
+        transform: none;
+    }
+
+    .book-card:active {
+        transform: scale(0.98);
+    }
+
+    .btn-primary:hover {
+        transform: none;
+    }
+
+    .btn-primary:active {
+        transform: scale(0.97);
+    }
+
+    .btn-light:hover {
+        transform: none;
     }
 }

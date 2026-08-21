@@ -603,7 +603,7 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
                   ) : (
                     <div style={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))',
                       gap: '1.25rem'
                     }}>
                       {demoRecommendations.map(rec => {
@@ -839,7 +839,7 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
               <p>{t.emptyNotes}</p>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem', marginTop: '1.5rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))', gap: '1rem', marginTop: '1.5rem' }}>
               {notes.map(n => (
                 <div 
                   key={n.noteId} 

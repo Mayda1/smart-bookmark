@@ -261,7 +261,7 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
       </div>
 
       {/* Reading Canvas & Page Navigation Container */}
-      <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1.5rem', maxWidth: '900px', margin: '0 auto' }}>
+      <div className="book-container" style={{ position: 'relative' }}>
         
         {/* Navigation Button Left */}
         <button 
@@ -355,9 +355,10 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
           {lang === "he" ? "←" : "→"}
         </button>
 
-        {/* STEP 1: FLOATING SIDE BUTTON (Appears ON THE SIDE only when text is selected!) */}
+        {/* STEP 1: FLOATING SAVE BUTTON (Side on desktop, below viewport on mobile) */}
         {selectedText && !showBottomForm && (
           <div 
+            className="quote-save-side-btn"
             style={{
               position: 'absolute',
               right: lang === 'he' ? '-140px' : 'auto',
@@ -376,6 +377,35 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
                 animation: 'slideIn 0.25s ease-out',
                 whiteSpace: 'nowrap',
                 fontSize: '0.85rem'
+              }}
+            >
+              ✍️ שמור ציטוט
+            </button>
+          </div>
+        )}
+
+        {/* Mobile-only: save button below viewport when text is selected */}
+        {selectedText && !showBottomForm && (
+          <div 
+            className="quote-save-mobile-btn"
+            style={{
+              display: 'none',
+              justifyContent: 'center',
+              marginTop: '0.75rem',
+              zIndex: 100
+            }}
+          >
+            <button 
+              onClick={handleSideButtonClick} 
+              className="btn btn-primary"
+              style={{
+                boxShadow: 'var(--shadow-md)',
+                padding: '0.65rem 1.25rem',
+                borderRadius: '12px',
+                animation: 'slideIn 0.25s ease-out',
+                fontSize: '0.85rem',
+                width: '100%',
+                maxWidth: '320px'
               }}
             >
               ✍️ שמור ציטוט
@@ -476,7 +506,7 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
             📓 ציטוטים והערות שמורות בספר זה ({notes.length})
           </h4>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: '1rem' }}>
             {notes.map(n => (
               <div key={n.noteId} style={{ background: '#fff', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '1rem', boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>

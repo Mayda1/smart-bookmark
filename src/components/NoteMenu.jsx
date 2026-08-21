@@ -52,9 +52,11 @@ export default function NoteMenu({ onGoToPage, onDelete }) {
           borderRadius: '10px',
           boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
           zIndex: 200,
-          minWidth: '160px',
+          minWidth: '145px',
           overflow: 'hidden',
-          animation: 'fadeIn 0.15s ease-out'
+          animation: 'fadeIn 0.15s ease-out',
+          right: 0,
+          left: 'auto'
         }}>
           {onGoToPage && (
             <button
