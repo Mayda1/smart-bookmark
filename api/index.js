@@ -49,6 +49,17 @@ const DEFAULT_CATALOG = [
     cover: "/assets/forest_whispers.jpg",
     description: "ספר פנטזיה קסום על סודות היער העתיק והאלון המדבר.",
     notes: []
+  },
+  {
+    bookId: "man-search-meaning",
+    title: "האדם מחפש משמעות",
+    author: "ויקטור פרנקל",
+    totalPages: 210,
+    price: "₪10",
+    cover: "/books/man-search-meaning/page_001.jpg",
+    description: "מבוא ללוגותרפיה — מהדורה חדשה לציון 75 שנה לצאת הספר לאור",
+    pageImagePattern: "/books/man-search-meaning/page_{PAGE}.jpg",
+    notes: []
   }
 ];
 

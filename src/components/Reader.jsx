@@ -293,51 +293,80 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
               <span className="decor-line" style={{ backgroundColor: currentTheme.text, opacity: 0.3 }}></span>
             </div>
 
-            <div 
-              className="page-text-content"
-              style={{
-                fontSize: `${fontSize}px`,
-                fontFamily: fontFamily === "serif" ? "Lora, Georgia, serif" : "Assistant, sans-serif"
-              }}
-            >
-              {(() => {
-                const pageNotes = notes.filter(n => n.page === currentPage);
-                return null;
-              })()}
-              {currentPage === 1 ? (
-                <div>
-                  <h3 style={{ marginBottom: "1.5rem", fontFamily: "Lora, serif", fontSize: "1.8rem", textAlign: "center" }}>פרק ראשון</h3>
-                  <p style={{ marginBottom: "1rem" }}>
-                    {highlightText("\"הזמן איננו קו ישר,\" אמר הפרופסור והביט אל החלון הגדול שפנה לעבר העמק. \"הוא דומה יותר לדפים בספר. כשאתה נמצא בעמוד 45, עמוד 1 עדיין קיים ועמוד 250 כבר מחכה לך במקומו.\"", notes.filter(n => n.page === 1))}
-                  </p>
-                  <p>
-                    {highlightText("הרוח מחוץ לבניין לחשה דרך העצים. השעון על הקיר תקתק בקצב אטי וקצוב, כאילו מזכיר לכל הנוכחים בחדר כי כל מילה שנאמרת נחרתת בתוך דברי הימים של הזיכרון.", notes.filter(n => n.page === 1))}
-                  </p>
-                </div>
-              ) : currentPage === 2 ? (
-                <div>
-                  <h3 style={{ marginBottom: "1.5rem", fontFamily: "Lora, serif", fontSize: "1.8rem", textAlign: "center" }}>פרק שני</h3>
-                  <p style={{ marginBottom: "1rem" }}>
-                    {highlightText("המסע במעלה ההר החל בשעות הבוקר המוקדמות. הערפל הכבד שכיסה את העמק החל להתפוגג לאט, כשהוא חושף את שבילי האבן העתיקים שנסללו לפני מאות שנים.", notes.filter(n => n.page === 2))}
-                  </p>
-                  <p>
-                    {highlightText("\"כל צעד שאנחנו עושים מקרב אותנו אל הפסגה,\" אמרה אליסה בלחש. \"אבל היופי האמיתי הוא לא ההגעה, אלא הדרך שבה אנחנו מתבוננים בנוף מסביב.\"", notes.filter(n => n.page === 2))}
-                  </p>
-                </div>
-              ) : (
-                <div>
-                  <p style={{ marginBottom: "1rem" }}>
-                    {highlightText(`את נמצאת כעת בעמוד ${currentPage} מתוך ${book.totalPages}.`, notes.filter(n => n.page === currentPage))}
-                  </p>
-                  <p style={{ marginBottom: "1rem" }}>
-                    {highlightText("הסימנייה החכמה שלך מסנכרנת אוטומטית את התקדמות הקריאה בענן. בכל פעם שתשני עמוד בסימנייה הפיזית ותלחצי על \"Save\", העמוד יתעדכן כאן באופן מיידי.", notes.filter(n => n.page === currentPage))}
-                  </p>
-                  <blockquote style={{ borderRight: "3px solid var(--accent-sand)", paddingRight: "1rem", fontStyle: "italic", margin: "1.5rem 0", color: "var(--text-secondary)" }}>
-                    {highlightText("\"ספר טוב איננו מסתיים כשסוגרים את הכריכה; הוא ממשיך לחיות במחשבות של הקורא.\"", notes.filter(n => n.page === currentPage))}
-                  </blockquote>
-                </div>
-              )}
-            </div>
+            {/* Page Content — Image-based or Text-based */}
+            {book.pageImagePattern ? (
+              /* IMAGE-BASED BOOK (scanned pages) */
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden'
+              }}>
+                <img
+                  src={book.pageImagePattern.replace('{PAGE}', String(currentPage).padStart(3, '0'))}
+                  alt={`עמוד ${currentPage}`}
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                    objectFit: 'contain',
+                    borderRadius: '4px',
+                    userSelect: 'none'
+                  }}
+                  draggable={false}
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
+                />
+              </div>
+            ) : (
+              /* TEXT-BASED BOOK (original hardcoded demo) */
+              <div 
+                className="page-text-content"
+                style={{
+                  fontSize: `${fontSize}px`,
+                  fontFamily: fontFamily === "serif" ? "Lora, Georgia, serif" : "Assistant, sans-serif"
+                }}
+              >
+                {(() => {
+                  const pageNotes = notes.filter(n => n.page === currentPage);
+                  return null;
+                })()}
+                {currentPage === 1 ? (
+                  <div>
+                    <h3 style={{ marginBottom: "1.5rem", fontFamily: "Lora, serif", fontSize: "1.8rem", textAlign: "center" }}>פרק ראשון</h3>
+                    <p style={{ marginBottom: "1rem" }}>
+                      {highlightText("\"הזמן איננו קו ישר,\" אמר הפרופסור והביט אל החלון הגדול שפנה לעבר העמק. \"הוא דומה יותר לדפים בספר. כשאתה נמצא בעמוד 45, עמוד 1 עדיין קיים ועמוד 250 כבר מחכה לך במקומו.\"", notes.filter(n => n.page === 1))}
+                    </p>
+                    <p>
+                      {highlightText("הרוח מחוץ לבניין לחשה דרך העצים. השעון על הקיר תקתק בקצב אטי וקצוב, כאילו מזכיר לכל הנוכחים בחדר כי כל מילה שנאמרת נחרתת בתוך דברי הימים של הזיכרון.", notes.filter(n => n.page === 1))}
+                    </p>
+                  </div>
+                ) : currentPage === 2 ? (
+                  <div>
+                    <h3 style={{ marginBottom: "1.5rem", fontFamily: "Lora, serif", fontSize: "1.8rem", textAlign: "center" }}>פרק שני</h3>
+                    <p style={{ marginBottom: "1rem" }}>
+                      {highlightText("המסע במעלה ההר החל בשעות הבוקר המוקדמות. הערפל הכבד שכיסה את העמק החל להתפוגג לאט, כשהוא חושף את שבילי האבן העתיקים שנסללו לפני מאות שנים.", notes.filter(n => n.page === 2))}
+                    </p>
+                    <p>
+                      {highlightText("\"כל צעד שאנחנו עושים מקרב אותנו אל הפסגה,\" אמרה אליסה בלחש. \"אבל היופי האמיתי הוא לא ההגעה, אלא הדרך שבה אנחנו מתבוננים בנוף מסביב.\"", notes.filter(n => n.page === 2))}
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <p style={{ marginBottom: "1rem" }}>
+                      {highlightText(`את נמצאת כעת בעמוד ${currentPage} מתוך ${book.totalPages}.`, notes.filter(n => n.page === currentPage))}
+                    </p>
+                    <p style={{ marginBottom: "1rem" }}>
+                      {highlightText("הסימנייה החכמה שלך מסנכרנת אוטומטית את התקדמות הקריאה בענן. בכל פעם שתשני עמוד בסימנייה הפיזית ותלחצי על \"Save\", העמוד יתעדכן כאן באופן מיידי.", notes.filter(n => n.page === currentPage))}
+                    </p>
+                    <blockquote style={{ borderRight: "3px solid var(--accent-sand)", paddingRight: "1rem", fontStyle: "italic", margin: "1.5rem 0", color: "var(--text-secondary)" }}>
+                      {highlightText("\"ספר טוב איננו מסתיים כשסוגרים את הכריכה; הוא ממשיך לחיות במחשבות של הקורא.\"", notes.filter(n => n.page === currentPage))}
+                    </blockquote>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="page-footer" style={{ color: currentTheme.text, opacity: 0.7 }}>
               <span>— עמוד {currentPage} מתוך {book.totalPages} —</span>
@@ -355,8 +384,31 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
           {lang === "he" ? "←" : "→"}
         </button>
 
-        {/* STEP 1: FLOATING SAVE BUTTON (Side on desktop, below viewport on mobile) */}
-        {selectedText && !showBottomForm && (
+        {/* For image-based books: persistent "Add Quote" button below the reader */}
+        {book.pageImagePattern && !showBottomForm && (
+          <div style={{
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'center',
+            marginTop: '0.75rem'
+          }}>
+            <button
+              onClick={() => { setNewQuote(""); setShowBottomForm(true); }}
+              className="btn btn-primary btn-small"
+              style={{
+                boxShadow: 'var(--shadow-sm)',
+                borderRadius: '10px',
+                fontSize: '0.85rem',
+                padding: '0.55rem 1.25rem'
+              }}
+            >
+              ✍️ הוסף ציטוט או הערה מעמוד זה
+            </button>
+          </div>
+        )}
+
+        {/* STEP 1: FLOATING SAVE BUTTON — text-based books only (Side on desktop, below viewport on mobile) */}
+        {!book.pageImagePattern && selectedText && !showBottomForm && (
           <div 
             className="quote-save-side-btn"
             style={{
@@ -384,8 +436,8 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
           </div>
         )}
 
-        {/* Mobile-only: save button below viewport when text is selected */}
-        {selectedText && !showBottomForm && (
+        {/* Mobile-only: save button below viewport when text is selected (text-based books only) */}
+        {!book.pageImagePattern && selectedText && !showBottomForm && (
           <div 
             className="quote-save-mobile-btn"
             style={{

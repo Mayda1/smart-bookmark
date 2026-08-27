@@ -517,10 +517,13 @@ html[dir="ltr"] .form-group {
     color: var(--text-primary);
     border-radius: 6px 18px 18px 6px;
     box-shadow: var(--shadow-lg), inset 4px 0 8px rgba(0, 0, 0, 0.04);
-    aspect-ratio: 3/4;
     max-width: 580px;
-    padding: 3rem 2.5rem;
+    padding: 2rem 2rem;
     border-left: 6px solid #e0d9cb;
+    display: flex;
+    flex-direction: column;
+    min-height: 400px;
+    overflow: hidden;
 }
 
 /* ========================================
