@@ -28,7 +28,18 @@ if (!isVercel) {
   }
 }
 
-// Initial Global Catalog Books
+let mansSearchPages = [];
+try {
+  const fs = require('fs');
+  const path = require('path');
+  const jsonPath = path.join(__dirname, '../man_search_for_meaning.book.json');
+  if (fs.existsSync(jsonPath)) {
+    const raw = fs.readFileSync(jsonPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    mansSearchPages = parsed.pages || [];
+  }
+} catch (e) {}
+
 const DEFAULT_CATALOG = [
   {
     bookId: "BOOK_01",
@@ -48,6 +59,17 @@ const DEFAULT_CATALOG = [
     price: "₪39",
     cover: "/assets/forest_whispers.jpg",
     description: "ספר פנטזיה קסום על סודות היער העתיק והאלון המדבר.",
+    notes: []
+  },
+  {
+    bookId: "man-search-meaning",
+    title: "האדם מחפש משמעות",
+    author: "ויקטור פרנקל",
+    totalPages: mansSearchPages.length > 0 ? mansSearchPages.length : 210,
+    price: "₪10",
+    cover: "/assets/man_search_cover.jpg",
+    description: "מבוא ללוגותרפיה — מהדורה חדשה לציון 75 שנה לצאת הספר לאור. מאת ויקטור פרנקל.",
+    pages: mansSearchPages,
     notes: []
   }
 ];
