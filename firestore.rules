@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Kept in sync with ADMIN_EMAILS in src/context/AuthContext.jsx, src/dbHelper.js, api/index.js
+    function isAdmin() {
+      return isSignedIn() &&
+        request.auth.token.email in ['mayda2604@gmail.com', 'admin@smartbookmark.com'];
+    }
+
+    // Global book catalog — anyone can browse the store, only the admin can publish/edit
+    match /catalog/{bookId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /pages/{pageId} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+    }
+
+    // User profile docs (created at signup) — used for the admin "registered users" view
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid) || isAdmin();
+
+      // A user's personal library (purchased/owned books + reading progress)
+      match /library/{bookId} {
+        allow read, write: if isOwner(uid) || isAdmin();
+      }
+
+      // A user's saved quotes/highlights
+      match /notes/{noteId} {
+        allow read, write: if isOwner(uid) || isAdmin();
+      }
+    }
+
+    // Bookmark hardware device -> user mapping.
+    // A signed-in user may link a new device to themselves; only the admin may
+    // change/delete an existing link (progress updates from the device itself
+    // go through the server's Admin SDK endpoint, which bypasses these rules).
+    match /devices/{deviceId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+  }
+}

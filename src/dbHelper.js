@@ -1,202 +1,254 @@
-async function parseResponse(response) {
-  const contentType = response.headers.get("content-type");
-  if (contentType && contentType.includes("application/json")) {
-    return await response.json();
-  }
-  const text = await response.text();
-  throw new Error(text || "שגיאת תקשורת עם השרת");
+import {
+  collection,
+  collectionGroup,
+  doc,
+  getDoc,
+  getDocs,
+  addDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  where,
+  writeBatch,
+  arrayUnion,
+  serverTimestamp
+} from "firebase/firestore";
+import { db } from "./firebase";
+
+const ADMIN_EMAILS = ["mayda2604@gmail.com", "admin@smartbookmark.com"];
+
+function toMillis(ts) {
+  // Firestore Timestamp -> epoch ms, tolerant of a still-pending serverTimestamp() (null locally)
+  return ts && typeof ts.toMillis === "function" ? ts.toMillis() : Date.now();
 }
 
 // ==========================================
-// CLIENT-SIDE LOCALSTORAGE — PRIMARY STORAGE
-// Notes are persisted in the browser's LocalStorage as the single source of truth.
-// The Vercel Serverless /tmp filesystem is ephemeral and unreliable for persistence.
+// NOTES & HIGHLIGHTS — users/{uid}/notes/{noteId}
 // ==========================================
 
-const NOTES_STORAGE_KEY = "smart_bookmark_notes";
-
-function getAllLocalNotes() {
-  try {
-    const raw = localStorage.getItem(NOTES_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    return [];
-  }
-}
-
-function setAllLocalNotes(notes) {
-  try {
-    localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(notes));
-  } catch (e) {
-    console.error("LocalStorage write error:", e);
-  }
-}
-
-// 1. Get user notes & highlights — reads from LocalStorage only
 export async function getUserNotes(userId, bookId = "") {
-  let notes = getAllLocalNotes().filter(n => n.userId === userId);
+  const notesRef = collection(db, "users", userId, "notes");
+  const snap = await getDocs(notesRef);
+  let notes = snap.docs.map(d => {
+    const data = d.data();
+    return { noteId: d.id, ...data, createdAt: new Date(toMillis(data.createdAt)).toISOString() };
+  });
 
   if (bookId) {
     notes = notes.filter(n => n.bookId === bookId);
   }
-
-  // Sort by creation date, newest first
   notes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
   return notes;
 }
 
-// 2. Add a new note/quote — saves to LocalStorage immediately, also tries server
 export async function addNote(userId, noteData) {
-  const newNote = {
-    noteId: "NOTE_" + Date.now() + "_" + Math.random().toString(36).substr(2, 6),
+  const notesRef = collection(db, "users", userId, "notes");
+  const payload = {
     userId,
     bookId: noteData.bookId,
     bookTitle: noteData.bookTitle || "ספר",
     page: parseInt(noteData.page) || 1,
     quote: noteData.quote || "",
     note: noteData.note || "",
-    createdAt: new Date().toISOString()
+    createdAt: serverTimestamp()
   };
-
-  // Save to LocalStorage immediately — this is the primary store
-  const allNotes = getAllLocalNotes();
-  allNotes.unshift(newNote);
-  setAllLocalNotes(allNotes);
-
-  // Best-effort server save (fire and forget, does not affect return value)
-  try {
-    fetch("/api/notes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId,
-        bookId: noteData.bookId,
-        bookTitle: noteData.bookTitle,
-        page: noteData.page,
-        quote: noteData.quote,
-        note: noteData.note
-      })
-    }).catch(() => {});
-  } catch (e) {}
-
-  return newNote;
+  const ref = await addDoc(notesRef, payload);
+  return { noteId: ref.id, ...payload, createdAt: new Date().toISOString() };
 }
 
-// 3. Delete a note — removes from LocalStorage, also tries server
 export async function deleteNote(userId, noteId) {
-  // Remove from LocalStorage immediately
-  const allNotes = getAllLocalNotes();
-  const filtered = allNotes.filter(n => n.noteId !== noteId);
-  setAllLocalNotes(filtered);
-
-  // Best-effort server delete
-  try {
-    fetch(`/api/notes/${encodeURIComponent(noteId)}?userId=${encodeURIComponent(userId)}`, {
-      method: "DELETE"
-    }).catch(() => {});
-  } catch (e) {}
-
+  await deleteDoc(doc(db, "users", userId, "notes", noteId));
   return { success: true, noteId };
 }
 
 // ==========================================
-// SERVER API CALLS (Non-notes — these use the server normally)
+// GLOBAL CATALOG (BOOKSTORE) — catalog/{bookId}, pages in catalog/{bookId}/pages/{n}
 // ==========================================
 
-// 4. Admin: Get full raw database
-export async function getAdminDatabase(userEmail) {
-  const ts = Date.now();
-  const response = await fetch(`/api/admin/db?userEmail=${encodeURIComponent(userEmail)}&_t=${ts}`, { cache: "no-store" });
-  const data = await parseResponse(response);
-  if (!response.ok) throw new Error(data.error || "שגיאה בשליפת הדאטהבייס");
-  return data;
-}
-
-// 5. Get Global Catalog (Bookstore)
 export async function getCatalog() {
-  const ts = Date.now();
-  const response = await fetch(`/api/catalog?_t=${ts}`, { cache: "no-store" });
-  const data = await parseResponse(response);
-  if (!response.ok) throw new Error(data.error || "שגיאה בשליפת הקטלוג");
-  return data;
+  const snap = await getDocs(collection(db, "catalog"));
+  return snap.docs.map(d => ({ bookId: d.id, ...d.data() }));
 }
 
-// 6. Admin: Add book to global catalog
+// Admin: add a book to the global catalog. bookDetails.pages is an array of either
+// plain strings (legacy text-only books) or { type: "text", text } / { type: "image", image, alt } objects.
 export async function addCatalogBook(userEmail, bookDetails) {
-  const response = await fetch("/api/catalog", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      userEmail,
-      title: bookDetails.title,
-      author: bookDetails.author,
-      totalPages: parseInt(bookDetails.totalPages),
-      cover: bookDetails.cover,
-      price: bookDetails.price || "₪49",
-      description: bookDetails.description,
-      pages: bookDetails.pages || []
-    })
+  const normalizedEmail = (userEmail || "").toLowerCase().trim();
+  if (!ADMIN_EMAILS.includes(normalizedEmail)) {
+    throw new Error("הרשאת מנהלת בלבד");
+  }
+  if (!bookDetails.title || !bookDetails.author || !bookDetails.totalPages) {
+    throw new Error("שם הספר, המחבר ומספר העמודים הם חובה");
+  }
+
+  const catalogRef = collection(db, "catalog");
+  const bookDoc = await addDoc(catalogRef, {
+    title: bookDetails.title,
+    author: bookDetails.author,
+    totalPages: parseInt(bookDetails.totalPages),
+    price: bookDetails.price || "₪49",
+    cover: bookDetails.cover || "/assets/placeholder_cover.png",
+    description: bookDetails.description || "ספר חדש בקטלוג החברה.",
+    createdAt: serverTimestamp(),
+    createdBy: normalizedEmail
   });
-  const data = await parseResponse(response);
-  if (!response.ok) throw new Error(data.error || "שגיאה בהוספת הספר לקטלוג");
-  return data;
+
+  const pages = Array.isArray(bookDetails.pages) ? bookDetails.pages : [];
+  if (pages.length > 0) {
+    // Firestore batches are capped at 500 writes — chunk accordingly
+    const CHUNK = 450;
+    for (let start = 0; start < pages.length; start += CHUNK) {
+      const batch = writeBatch(db);
+      const slice = pages.slice(start, start + CHUNK);
+      slice.forEach((page, i) => {
+        const pageNumber = start + i + 1;
+        const pageData = typeof page === "string"
+          ? { type: "text", text: page, pageNumber }
+          : page.type === "image"
+            ? { type: "image", image: page.image, alt: page.alt || "", pageNumber }
+            : { type: "text", text: page.text || "", pageNumber };
+        const pageRef = doc(db, "catalog", bookDoc.id, "pages", String(pageNumber));
+        batch.set(pageRef, pageData);
+      });
+      await batch.commit();
+    }
+  }
+
+  return {
+    bookId: bookDoc.id,
+    title: bookDetails.title,
+    author: bookDetails.author,
+    totalPages: parseInt(bookDetails.totalPages),
+    price: bookDetails.price || "₪49",
+    cover: bookDetails.cover || "/assets/placeholder_cover.png",
+    description: bookDetails.description || ""
+  };
 }
 
-// 7. User: Purchase / Claim book from catalog to personal library
+// Fetch the ordered page contents for a book, for the Reader
+export async function getBookPages(bookId) {
+  const snap = await getDocs(collection(db, "catalog", bookId, "pages"));
+  const pages = snap.docs.map(d => d.data());
+  pages.sort((a, b) => (a.pageNumber || 0) - (b.pageNumber || 0));
+  return pages;
+}
+
+// ==========================================
+// USER LIBRARY (OWNERSHIP + READING PROGRESS) — users/{uid}/library/{bookId}
+// ==========================================
+
 export async function purchaseBook(userId, bookId) {
-  const response = await fetch("/api/user/purchase", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userId, bookId })
+  const catalogSnap = await getDoc(doc(db, "catalog", bookId));
+  if (!catalogSnap.exists()) {
+    throw new Error("הספר לא נמצא בקטלוג החברה");
+  }
+
+  const libraryDocRef = doc(db, "users", userId, "library", bookId);
+  const existing = await getDoc(libraryDocRef);
+  if (existing.exists()) {
+    throw new Error("הספר כבר קיים בספרייה האישית שלך!");
+  }
+
+  await setDoc(libraryDocRef, {
+    bookId,
+    currentPage: 1,
+    purchasedAt: serverTimestamp()
   });
-  const data = await parseResponse(response);
-  if (!response.ok) throw new Error(data.error || "שגיאה ברכישת הספר");
-  return data;
+
+  return { bookId, currentPage: 1, ...catalogSnap.data() };
 }
 
-// 8. Get all books in user's personal library
 export async function getUserBooks(userId) {
-  const ts = Date.now();
-  const response = await fetch(`/api/books?userId=${encodeURIComponent(userId)}&_t=${ts}`, { cache: "no-store" });
-  const data = await parseResponse(response);
-  if (!response.ok) throw new Error(data.error || "שגיאה בטעינת הספרייה");
-  return data;
+  const librarySnap = await getDocs(collection(db, "users", userId, "library"));
+  const libraryDocs = librarySnap.docs.map(d => ({ bookId: d.id, ...d.data() }));
+
+  const books = await Promise.all(libraryDocs.map(async (entry) => {
+    const catalogSnap = await getDoc(doc(db, "catalog", entry.bookId));
+    const catalogData = catalogSnap.exists() ? catalogSnap.data() : {};
+    return { ...catalogData, ...entry };
+  }));
+
+  return books;
 }
 
-// 9. Update progress of a specific book
 export async function updateBookProgress(userId, bookId, pageNumber) {
-  const response = await fetch("/api/update-progress", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      userId,
-      bookId,
-      currentPage: parseInt(pageNumber)
-    })
-  });
-  const data = await parseResponse(response);
-  if (!response.ok) throw new Error(data.error || "שגיאה בעדכון התקדמות הקריאה");
-  return data;
+  const catalogSnap = await getDoc(doc(db, "catalog", bookId));
+  const totalPages = catalogSnap.exists() ? catalogSnap.data().totalPages : parseInt(pageNumber);
+  const page = Math.min(Math.max(1, parseInt(pageNumber)), totalPages || parseInt(pageNumber));
+
+  await updateDoc(doc(db, "users", userId, "library", bookId), { currentPage: page });
+  return { success: true, userId, message: `העמוד עודכן ל-${page}` };
 }
 
-// 10. Link Bookmark Device ID
+// ==========================================
+// BOOKMARK DEVICES — devices/{deviceId} = { uid }
+// (Progress updates *from* the physical device go through /api/update-progress
+//  on the server, using the Firebase Admin SDK, since the hardware isn't a
+//  signed-in Firebase user and can't satisfy the client-side security rules.)
+// ==========================================
+
 export async function linkBookmarkDevice(userId, deviceId) {
-  const response = await fetch("/api/devices/link", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userId, deviceId })
+  const cleanDeviceId = deviceId.trim().toUpperCase();
+  await setDoc(doc(db, "devices", cleanDeviceId), {
+    uid: userId,
+    linkedAt: serverTimestamp()
   });
-  const data = await parseResponse(response);
-  if (!response.ok) throw new Error(data.error || "שגיאה בקישור המכשיר");
-  return data;
+  await setDoc(doc(db, "users", userId), { linkedDevices: arrayUnion(cleanDeviceId) }, { merge: true });
+
+  return { success: true, deviceId: cleanDeviceId, userId };
 }
 
-// 11. Get user linked devices
 export async function getUserDevices(userId) {
-  const ts = Date.now();
-  const response = await fetch(`/api/devices?userId=${encodeURIComponent(userId)}&_t=${ts}`, { cache: "no-store" });
-  const data = await parseResponse(response);
-  if (!response.ok) throw new Error(data.error || "שגיאה בשליפת מכשירים");
-  return data;
+  const q = query(collection(db, "devices"), where("uid", "==", userId));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => d.id);
+}
+
+// ==========================================
+// ADMIN — raw database inspection
+// ==========================================
+
+export async function getAdminDatabase(userEmail) {
+  const normalizedEmail = (userEmail || "").toLowerCase().trim();
+  if (!ADMIN_EMAILS.includes(normalizedEmail)) {
+    throw new Error("הרשאת מנהלת בלבד");
+  }
+
+  const [usersSnap, catalogSnap, librarySnap, notesSnap, devicesSnap] = await Promise.all([
+    getDocs(collection(db, "users")),
+    getDocs(collection(db, "catalog")),
+    getDocs(collectionGroup(db, "library")),
+    getDocs(collectionGroup(db, "notes")),
+    getDocs(collection(db, "devices"))
+  ]);
+
+  const users = usersSnap.docs.map(d => ({
+    uid: d.id,
+    email: d.data().email,
+    role: ADMIN_EMAILS.includes((d.data().email || "").toLowerCase()) ? "admin" : "user"
+  }));
+
+  const catalog = catalogSnap.docs.map(d => ({ bookId: d.id, ...d.data() }));
+
+  const progress = {};
+  librarySnap.docs.forEach(d => {
+    const uid = d.ref.parent.parent.id;
+    if (!progress[uid]) progress[uid] = [];
+    progress[uid].push({ bookId: d.id, ...d.data() });
+  });
+
+  const notes = {};
+  notesSnap.docs.forEach(d => {
+    const uid = d.ref.parent.parent.id;
+    if (!notes[uid]) notes[uid] = [];
+    notes[uid].push({ noteId: d.id, ...d.data() });
+  });
+
+  const devices = {};
+  devicesSnap.docs.forEach(d => {
+    devices[d.id] = d.data().uid;
+  });
+
+  return { users, catalog, progress, devices, notes };
 }

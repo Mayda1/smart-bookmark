@@ -1,84 +1,106 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut
+} from "firebase/auth";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { auth, db, isMock } from "../firebase";
 
 const AuthContext = createContext();
 
+// Admin emails — mirrors the check used across the app (Library.jsx, Firestore rules)
+const ADMIN_EMAILS = ["mayda2604@gmail.com", "admin@smartbookmark.com"];
+
+// Translates Firebase Auth error codes into the Hebrew messages the UI already expects
+function translateAuthError(err) {
+  const code = err && err.code;
+  const map = {
+    "auth/email-already-in-use": "האימייל כבר קיים במערכת",
+    "auth/invalid-email": "כתובת אימייל לא תקינה",
+    "auth/weak-password": "הסיסמה חייבת להכיל לפחות 6 תווים",
+    "auth/user-not-found": "שם המשתמש או הסיסמה שגויים",
+    "auth/wrong-password": "שם המשתמש או הסיסמה שגויים",
+    "auth/invalid-credential": "שם המשתמש או הסיסמה שגויים",
+    "auth/too-many-requests": "יותר מדי ניסיונות התחברות כושלים. נסי שוב מאוחר יותר"
+  };
+  return new Error(map[code] || err.message || "שגיאת התחברות");
+}
+
 export function useAuth() {
   return useContext(AuthContext);
+}
+
+// Shapes a Firebase Auth user into the { email, uid, role } object the rest
+// of the app already expects (same shape the old Express API returned).
+function shapeUser(fbUser) {
+  if (!fbUser) return null;
+  const email = (fbUser.email || "").toLowerCase();
+  return {
+    uid: fbUser.uid,
+    email,
+    role: ADMIN_EMAILS.includes(email) ? "admin" : "user"
+  };
 }
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Helper to parse response safely
-  async function parseResponse(response) {
-    const contentType = response.headers.get("content-type");
-    if (contentType && contentType.includes("application/json")) {
-      return await response.json();
-    }
-    const text = await response.text();
-    throw new Error(text || "שגיאת תקשורת עם השרת");
-  }
-
   // Sign Up
   async function signup(email, password) {
-    const response = await fetch("/api/auth/signup", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email, password }),
-    });
+    const normalizedEmail = email.toLowerCase().trim();
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
 
-    const data = await parseResponse(response);
-    if (!response.ok) {
-      throw new Error(data.error || "הרשמה נכשלה");
+      // Create the user's profile doc in Firestore (used by the admin "registered users" view)
+      await setDoc(doc(db, "users", cred.user.uid), {
+        email: normalizedEmail,
+        createdAt: serverTimestamp()
+      });
+
+      const shaped = shapeUser(cred.user);
+      setCurrentUser(shaped);
+      return shaped;
+    } catch (err) {
+      throw translateAuthError(err);
     }
-
-    localStorage.setItem("smart_bookmark_user", JSON.stringify(data));
-    setCurrentUser(data);
-    return data;
   }
 
   // Login
   async function login(email, password) {
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email, password }),
-    });
-
-    const data = await parseResponse(response);
-    if (!response.ok) {
-      throw new Error(data.error || "התחברות נכשלה");
+    const normalizedEmail = email.toLowerCase().trim();
+    try {
+      const cred = await signInWithEmailAndPassword(auth, normalizedEmail, password);
+      const shaped = shapeUser(cred.user);
+      setCurrentUser(shaped);
+      return shaped;
+    } catch (err) {
+      throw translateAuthError(err);
     }
-
-    localStorage.setItem("smart_bookmark_user", JSON.stringify(data));
-    setCurrentUser(data);
-    return data;
   }
 
   // Logout
   async function logout() {
-    localStorage.removeItem("smart_bookmark_user");
+    await signOut(auth);
     setCurrentUser(null);
   }
 
   useEffect(() => {
-    const savedUser = JSON.parse(localStorage.getItem("smart_bookmark_user"));
-    if (savedUser) {
-      setCurrentUser(savedUser);
-    }
-    setLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+      setCurrentUser(shapeUser(fbUser));
+      setLoading(false);
+    });
+    return unsubscribe;
   }, []);
 
   const value = {
     currentUser,
     signup,
     login,
-    logout
+    logout,
+    isMock
   };
 
   return (

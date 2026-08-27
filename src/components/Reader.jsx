@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
-import { getUserBooks, updateBookProgress, getUserNotes, addNote, deleteNote } from "../dbHelper";
+import { getUserBooks, getCatalog, getBookPages, updateBookProgress, getUserNotes, addNote, deleteNote } from "../dbHelper";
 import { translations } from "../translations";
 import NoteMenu from "./NoteMenu";
 
@@ -49,6 +49,9 @@ function highlightText(text, savedQuotes) {
 export default function Reader({ bookId, initialPage, startPage, onBack, onClose, showToast }) {
   const { currentUser } = useAuth();
   const [book, setBook] = useState(null);
+  // Ordered page contents fetched from catalog/{bookId}/pages — each item is
+  // { type: "text", text } or { type: "image", image, alt }
+  const [pages, setPages] = useState([]);
   const [currentPage, setCurrentPage] = useState(initialPage || startPage || 1);
 
   // Single navigation back handler (Triggers top header back button)
@@ -110,19 +113,18 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
       }
 
       if (found) {
-        // If pages is missing in user progress, fetch catalog book details to attach pages text!
-        if (!found.pages || found.pages.length === 0) {
-          try {
-            const catalog = await getCatalog();
-            const catBook = Array.isArray(catalog) ? catalog.find(b => b.bookId === bookId) : null;
-            if (catBook && catBook.pages && catBook.pages.length > 0) {
-              found = { ...found, pages: catBook.pages, totalPages: catBook.pages.length };
-            }
-          } catch (e) {}
-        }
         setBook(found);
         const requestedPage = initialPage || startPage;
         setCurrentPage(requestedPage || found.currentPage || 1);
+
+        // Fetch the ordered page contents (text/image) from the catalog's pages subcollection
+        try {
+          const bookPages = await getBookPages(bookId);
+          setPages(bookPages);
+        } catch (e) {
+          console.error("Page contents fetch error:", e);
+          setPages([]);
+        }
       } else {
         // Emergency fallback if bookId is not in API DB
         setBook({
@@ -245,6 +247,12 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
 
   const currentTheme = themeStyles[theme];
 
+  // True when the current page has no selectable text (image-type page, or a
+  // legacy whole-book image scan) — text selection/highlighting doesn't apply there.
+  const isImagePage = pages.length > 0
+    ? pages[currentPage - 1]?.type === "image"
+    : Boolean(book.pageImagePattern);
+
   return (
     <div className="reader-container" style={{ position: 'relative' }}>
       {/* Upper Navigation Bar (THE ONLY Back to Library button on the entire page!) */}
@@ -321,10 +329,41 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
               <span className="decor-line" style={{ backgroundColor: currentTheme.text, opacity: 0.3 }}></span>
             </div>
 
-            {/* Page Content — Digital Text (Uploaded Books), Image-based, or Fallback Demo */}
-            {book.pages && book.pages.length > 0 ? (
+            {/* Page Content — Digital Text/Image (Uploaded Books), legacy whole-book image scan, or Fallback Demo */}
+            {pages && pages.length > 0 && pages[currentPage - 1]?.type === "image" ? (
+              /* IMAGE-TYPE PAGE (chapter divider / illustration — no selectable text) */
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden'
+              }}>
+                <img
+                  src={pages[currentPage - 1].image}
+                  alt={pages[currentPage - 1].alt || `עמוד ${currentPage}`}
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                    objectFit: 'contain',
+                    borderRadius: '4px',
+                    userSelect: 'none'
+                  }}
+                  draggable={false}
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
+                />
+                {pages[currentPage - 1].alt && (
+                  <p style={{ marginTop: '0.75rem', fontSize: '0.85rem', opacity: 0.7, fontStyle: 'italic' }}>
+                    {pages[currentPage - 1].alt}
+                  </p>
+                )}
+              </div>
+            ) : pages && pages.length > 0 && pages[currentPage - 1]?.type === "text" ? (
               /* DYNAMIC UPLOADED DIGITAL BOOK TEXT */
-              <div 
+              <div
                 className="page-text-content"
                 style={{
                   fontSize: `${fontSize}px`,
@@ -334,7 +373,7 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
                 }}
               >
                 {(() => {
-                  const pageContent = book.pages[currentPage - 1] || "עמוד ריק.";
+                  const pageContent = pages[currentPage - 1].text || "עמוד ריק.";
                   const pageNotes = notes.filter(n => n.page === currentPage);
                   // Split page text into paragraphs and highlight quotes
                   const paragraphs = pageContent.split('\n\n');
@@ -435,8 +474,8 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
           {lang === "he" ? "←" : "→"}
         </button>
 
-        {/* For image-based books: persistent "Add Quote" button below the reader */}
-        {book.pageImagePattern && !showBottomForm && (
+        {/* For image-type pages: persistent "Add Quote" button below the reader (no text to select) */}
+        {isImagePage && !showBottomForm && (
           <div style={{
             width: '100%',
             display: 'flex',
@@ -459,7 +498,7 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
         )}
 
         {/* STEP 1: FLOATING SAVE BUTTON — text-based books only (Side on desktop, below viewport on mobile) */}
-        {!book.pageImagePattern && selectedText && !showBottomForm && (
+        {!isImagePage && selectedText && !showBottomForm && (
           <div 
             className="quote-save-side-btn"
             style={{
@@ -488,7 +527,7 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
         )}
 
         {/* Mobile-only: save button below viewport when text is selected (text-based books only) */}
-        {!book.pageImagePattern && selectedText && !showBottomForm && (
+        {!isImagePage && selectedText && !showBottomForm && (
           <div 
             className="quote-save-mobile-btn"
             style={{
