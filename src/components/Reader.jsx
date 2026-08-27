@@ -293,9 +293,32 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
               <span className="decor-line" style={{ backgroundColor: currentTheme.text, opacity: 0.3 }}></span>
             </div>
 
-            {/* Page Content — Image-based or Text-based */}
-            {book.pageImagePattern ? (
-              /* IMAGE-BASED BOOK (scanned pages) */
+            {/* Page Content — Digital Text (Uploaded Books), Image-based, or Fallback Demo */}
+            {book.pages && book.pages.length > 0 ? (
+              /* DYNAMIC UPLOADED DIGITAL BOOK TEXT */
+              <div 
+                className="page-text-content"
+                style={{
+                  fontSize: `${fontSize}px`,
+                  fontFamily: fontFamily === "serif" ? "Lora, Georgia, serif" : "Assistant, sans-serif",
+                  whiteSpace: "pre-line",
+                  lineHeight: "1.8"
+                }}
+              >
+                {(() => {
+                  const pageContent = book.pages[currentPage - 1] || "עמוד ריק.";
+                  const pageNotes = notes.filter(n => n.page === currentPage);
+                  // Split page text into paragraphs and highlight quotes
+                  const paragraphs = pageContent.split('\n\n');
+                  return paragraphs.map((para, idx) => (
+                    <p key={idx} style={{ marginBottom: "1.2rem" }}>
+                      {highlightText(para, pageNotes)}
+                    </p>
+                  ));
+                })()}
+              </div>
+            ) : book.pageImagePattern ? (
+              /* IMAGE-BASED BOOK (scanned pages fallback) */
               <div style={{
                 flex: 1,
                 display: 'flex',
@@ -320,7 +343,7 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
                 />
               </div>
             ) : (
-              /* TEXT-BASED BOOK (original hardcoded demo) */
+              /* TEXT-BASED DEMO FALLBACK */
               <div 
                 className="page-text-content"
                 style={{

@@ -134,7 +134,8 @@ export async function addCatalogBook(userEmail, bookDetails) {
       totalPages: parseInt(bookDetails.totalPages),
       cover: bookDetails.cover,
       price: bookDetails.price || "₪49",
-      description: bookDetails.description
+      description: bookDetails.description,
+      pages: bookDetails.pages || []
     })
   });
   const data = await parseResponse(response);

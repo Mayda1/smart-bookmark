@@ -49,17 +49,6 @@ const DEFAULT_CATALOG = [
     cover: "/assets/forest_whispers.jpg",
     description: "ספר פנטזיה קסום על סודות היער העתיק והאלון המדבר.",
     notes: []
-  },
-  {
-    bookId: "man-search-meaning",
-    title: "האדם מחפש משמעות",
-    author: "ויקטור פרנקל",
-    totalPages: 210,
-    price: "₪10",
-    cover: "/books/man-search-meaning/page_001.jpg",
-    description: "מבוא ללוגותרפיה — מהדורה חדשה לציון 75 שנה לצאת הספר לאור",
-    pageImagePattern: "/books/man-search-meaning/page_{PAGE}.jpg",
-    notes: []
   }
 ];
 
@@ -310,7 +299,7 @@ app.get('/api/catalog', (req, res) => {
 // 8. Admin Add Book to Global Catalog
 app.post('/api/catalog', (req, res) => {
   try {
-    const { userEmail, title, author, totalPages, cover, price, description } = req.body || {};
+    const { userEmail, title, author, totalPages, cover, price, description, pages } = req.body || {};
     const normalizedEmail = (userEmail || "").toLowerCase().trim();
 
     if (!ADMIN_EMAILS.includes(normalizedEmail)) {
@@ -330,6 +319,7 @@ app.post('/api/catalog', (req, res) => {
       price: price || "₪49",
       cover: cover || "/assets/placeholder_cover.png",
       description: description || "ספר חדש בקטלוג החברה.",
+      pages: Array.isArray(pages) ? pages : [],
       notes: []
     };
 

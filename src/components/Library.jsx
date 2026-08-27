@@ -47,6 +47,7 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
   const [newPrice, setNewPrice] = useState("₪49");
   const [newCover, setNewCover] = useState("");
   const [newDescription, setNewDescription] = useState("");
+  const [newBookPages, setNewBookPages] = useState([]);
   const [addLoading, setAddLoading] = useState(false);
 
   const [noteBookId, setNoteBookId] = useState("");
@@ -121,6 +122,32 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
     }
   }
 
+  function handleBookFileUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target.result);
+        if (json.title) setNewTitle(json.title);
+        if (json.author) setNewAuthor(json.author);
+        if (json.price) setNewPrice(json.price);
+        if (json.description) setNewDescription(json.description);
+        if (json.cover) setNewCover(json.cover);
+        if (Array.isArray(json.pages)) {
+          setNewBookPages(json.pages);
+          setNewTotalPages(String(json.pages.length));
+        }
+        const pageCountMsg = json.pages ? `${json.pages.length} עמודים` : "";
+        showToast(lang === "he" ? `קובץ הספר "${json.title || file.name}" נטען בהצלחה! ${pageCountMsg}` : "Book file loaded successfully!", "success");
+      } catch (err) {
+        showToast(lang === "he" ? "קובץ הספר אינו בפורמט JSON תקין" : "Invalid book JSON file format", "error");
+      }
+    };
+    reader.readAsText(file);
+  }
+
   async function handleAddCatalogBook(e) {
     e.preventDefault();
     if (!newTitle || !newAuthor || !newTotalPages) return;
@@ -133,7 +160,8 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
         totalPages: parseInt(newTotalPages),
         price: newPrice,
         cover: newCover,
-        description: newDescription
+        description: newDescription,
+        pages: newBookPages
       });
       setCatalog(prev => [...prev, added]);
       showToast(lang === "he" ? `הספר "${newTitle}" נוסף לקטלוג!` : `Book "${newTitle}" added!`, "success");
@@ -143,6 +171,7 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
       setNewTotalPages("");
       setNewCover("");
       setNewDescription("");
+      setNewBookPages([]);
       loadData(false);
     } catch (err) {
       showToast(err.message || "Error adding book", "error");
@@ -337,7 +366,51 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
 
           {showAdminForm && (
             <form onSubmit={handleAddCatalogBook} className="add-book-form">
-              <h3 style={{ fontFamily: 'var(--font-serif)', marginBottom: '1rem' }}>{t.addBookTitle}</h3>
+              <h3 style={{ fontFamily: 'var(--font-serif)', marginBottom: '0.5rem' }}>{t.addBookTitle}</h3>
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
+                ניתן למלא את הפרטים ידנית או להעלות קובץ ספר דיגיטלי מוכן בפורמט JSON.
+              </p>
+
+              {/* Digital Book JSON File Uploader */}
+              <div style={{
+                background: 'linear-gradient(135deg, #fdf8ef, #f6edd8)',
+                border: '2px dashed var(--border-strong)',
+                borderRadius: '12px',
+                padding: '1.15rem',
+                textAlign: 'center',
+                marginBottom: '1.25rem'
+              }}>
+                <label style={{ cursor: 'pointer', display: 'block' }}>
+                  <div style={{ fontSize: '1.5rem', marginBottom: '0.35rem' }}>📄</div>
+                  <div style={{ fontWeight: '700', color: 'var(--primary-slate)', fontSize: '0.95rem' }}>
+                    לחצי כאן להעלאת קובץ ספר דיגיטלי (.book.json / .json)
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                    הקובץ יטען אוטומטית את שם הספר, המחבר, מספר העמודים וכל טקסט העמודים לקורא!
+                  </div>
+                  <input
+                    type="file"
+                    accept=".json,.book.json"
+                    onChange={handleBookFileUpload}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+                {newBookPages.length > 0 && (
+                  <div style={{
+                    marginTop: '0.75rem',
+                    background: '#e8f5e9',
+                    color: '#2e7d32',
+                    padding: '0.4rem 0.85rem',
+                    borderRadius: '8px',
+                    fontSize: '0.85rem',
+                    fontWeight: '700',
+                    display: 'inline-block'
+                  }}>
+                    ✓ נטענו בהצלחה {newBookPages.length} עמודים דיגיטליים מלאים!
+                  </div>
+                )}
+              </div>
+
               <div className="form-row">
                 <div className="form-group">
                   <label>{t.bookTitle}</label>
