@@ -396,22 +396,135 @@ html[dir="ltr"] .book-info {
     font-weight: 500;
 }
 
-/* Auth Cards */
+/* ==========================================
+   AUTH SCREENS (Login / Sign Up)
+   ========================================== */
+
 .auth-card-container {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 80vh;
+    min-height: 100vh;
+    padding: 2rem 1.5rem;
+    overflow: hidden;
+}
+
+/* Soft decorative color washes behind the card — quiet, on-brand, no imagery needed */
+.auth-card-container::before,
+.auth-card-container::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(70px);
+    z-index: 0;
+    pointer-events: none;
+}
+
+.auth-card-container::before {
+    width: 380px;
+    height: 380px;
+    background: rgba(140, 109, 88, 0.16);
+    top: -120px;
+    inset-inline-start: -120px;
+}
+
+.auth-card-container::after {
+    width: 420px;
+    height: 420px;
+    background: rgba(74, 107, 93, 0.13);
+    bottom: -140px;
+    inset-inline-end: -140px;
 }
 
 .auth-card {
+    position: relative;
+    z-index: 1;
     background: var(--surface-card);
     border: 1px solid var(--border-subtle);
-    border-radius: 20px;
+    border-radius: 22px;
     width: 100%;
-    max-width: 420px;
-    padding: 2.25rem;
-    box-shadow: var(--shadow-md);
+    max-width: 440px;
+    padding: 2.75rem 2.5rem;
+    box-shadow: var(--shadow-lg);
+    animation: authCardIn 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes authCardIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.auth-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.15rem;
+    margin-bottom: 1.75rem;
+}
+
+.auth-brand .icon {
+    font-size: 2.1rem;
+    line-height: 1;
+    margin-bottom: 0.4rem;
+}
+
+.auth-brand h1 {
+    font-family: var(--font-serif);
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--primary-slate);
+    letter-spacing: -0.3px;
+}
+
+.auth-brand p {
+    font-size: 0.85rem;
+    color: var(--text-tertiary);
+    margin-top: 0.15rem;
+}
+
+.auth-title {
+    text-align: center;
+    font-family: var(--font-serif);
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--primary-slate);
+    margin-bottom: 1.75rem;
+}
+
+/* Banners: offline-mode notice & error alerts */
+.mock-badge-banner,
+.alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    margin-bottom: 1.25rem;
+    animation: authCardIn 0.3s ease;
+}
+
+.mock-badge-banner {
+    background: rgba(166, 124, 0, 0.08);
+    border: 1px solid rgba(166, 124, 0, 0.25);
+    color: #7a5d00;
+}
+
+.alert-error {
+    background: rgba(188, 71, 73, 0.08);
+    border: 1px solid rgba(188, 71, 73, 0.25);
+    color: var(--error);
+}
+
+/* Form */
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.15rem;
+    margin-bottom: 1.5rem;
 }
 
 .form-group {
@@ -434,10 +547,11 @@ html[dir="ltr"] .form-group {
 .form-group input {
     background: #fdfdfc;
     border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border-radius: 10px;
     padding: 0.75rem 1rem;
     color: var(--text-primary);
     font-size: 0.95rem;
+    width: 100%;
     transition: var(--transition);
 }
 
@@ -445,6 +559,105 @@ html[dir="ltr"] .form-group {
     outline: none;
     border-color: var(--primary-slate);
     box-shadow: 0 0 0 3px rgba(45, 52, 54, 0.08);
+}
+
+.form-group input::placeholder {
+    color: var(--text-tertiary);
+}
+
+/* Icon-accented inputs (email / password) */
+.input-with-icon {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.input-with-icon .input-icon {
+    position: absolute;
+    inset-inline-start: 0.9rem;
+    width: 18px;
+    height: 18px;
+    color: var(--text-tertiary);
+    pointer-events: none;
+    flex-shrink: 0;
+    transition: var(--transition);
+}
+
+.input-with-icon input {
+    padding-inline-start: 2.7rem;
+}
+
+.input-with-icon input.has-toggle {
+    padding-inline-end: 2.7rem;
+}
+
+.input-with-icon input:focus ~ .input-icon {
+    color: var(--primary-slate);
+}
+
+.input-toggle-btn {
+    position: absolute;
+    inset-inline-end: 0.5rem;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.4rem;
+    border-radius: 8px;
+    transition: var(--transition);
+}
+
+.input-toggle-btn:hover {
+    color: var(--primary-slate);
+    background: var(--bg-main);
+}
+
+.input-toggle-btn svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+}
+
+.btn-block {
+    width: 100%;
+    padding: 0.85rem 1.25rem;
+    font-size: 1rem;
+    margin-top: 0.25rem;
+}
+
+.btn-spinner {
+    width: 15px;
+    height: 15px;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: authSpin 0.7s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes authSpin {
+    to { transform: rotate(360deg); }
+}
+
+.auth-footer-text {
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.auth-link {
+    color: var(--accent-sand);
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: var(--transition);
+}
+
+.auth-link:hover {
+    border-bottom-color: var(--accent-sand);
 }
 
 /* Add Book Form */

@@ -50,6 +50,9 @@ export function AuthProvider({ children }) {
 
   // Sign Up
   async function signup(email, password) {
+    if (isMock || !auth) {
+      throw new Error("Firebase לא מוגדר בסביבה הזו — לא ניתן להירשם כרגע.");
+    }
     const normalizedEmail = email.toLowerCase().trim();
     try {
       const cred = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
@@ -70,6 +73,9 @@ export function AuthProvider({ children }) {
 
   // Login
   async function login(email, password) {
+    if (isMock || !auth) {
+      throw new Error("Firebase לא מוגדר בסביבה הזו — לא ניתן להתחבר כרגע.");
+    }
     const normalizedEmail = email.toLowerCase().trim();
     try {
       const cred = await signInWithEmailAndPassword(auth, normalizedEmail, password);
@@ -88,6 +94,12 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
+    // If Firebase failed to initialize (missing/invalid env vars), fall back to a
+    // signed-out mock state instead of crashing the whole app on a blank screen.
+    if (isMock || !auth) {
+      setLoading(false);
+      return;
+    }
     const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
       setCurrentUser(shapeUser(fbUser));
       setLoading(false);
