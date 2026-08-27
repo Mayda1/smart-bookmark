@@ -97,8 +97,17 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
         getUserNotes(currentUser.uid, bookId)
       ]);
       
-      const found = booksData.find(b => b.bookId === bookId);
+      let found = booksData.find(b => b.bookId === bookId);
       if (found) {
+        // If pages is missing in user progress (e.g. cached from older progress object),
+        // fetch catalog book details to ensure pages text is always available!
+        if (!found.pages || found.pages.length === 0) {
+          const catalog = await getCatalog();
+          const catBook = catalog.find(b => b.bookId === bookId);
+          if (catBook && catBook.pages && catBook.pages.length > 0) {
+            found = { ...found, pages: catBook.pages, totalPages: catBook.pages.length };
+          }
+        }
         setBook(found);
         // Use the explicitly requested page (e.g. from "go to page") if provided,
         // otherwise fall back to saved reading progress
