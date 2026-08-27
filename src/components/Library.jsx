@@ -804,11 +804,23 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
                 const isOwned = books.some(b => b.bookId === book.bookId);
 
                 return (
-                  <div key={book.bookId} className="book-card" style={{ cursor: 'default' }}>
+                  <div 
+                    key={book.bookId} 
+                    className="book-card" 
+                    onClick={() => {
+                      if (isOwned) onOpenBook(book.bookId, 1);
+                    }}
+                    style={{ cursor: isOwned ? 'pointer' : 'default' }}
+                  >
                     <div className="cover-wrapper">
                       <img src={book.cover} alt="Book Cover" className="book-cover" onError={(e) => {
                         e.target.src = "/assets/placeholder_cover.png";
                       }} />
+                      {isOwned && (
+                        <div className="card-overlay">
+                          <button className="btn btn-light btn-read">📖 {t.continueReading}</button>
+                        </div>
+                      )}
                     </div>
                     <div className="book-info">
                       <h3 className="book-title">{book.title}</h3>
@@ -818,9 +830,21 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
                       <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.5rem' }}>
                         <span style={{ fontWeight: '700', color: 'var(--primary-slate)', fontSize: '1.05rem' }}>{book.price || "₪49"}</span>
                         {isOwned ? (
-                          <span className="badge badge-linked">{t.alreadyOwned}</span>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenBook(book.bookId, 1);
+                            }} 
+                            className="btn btn-primary btn-small"
+                            style={{ background: 'linear-gradient(135deg, #2e7d32, #1b5e20)', color: '#fff' }}
+                          >
+                            📖 {lang === "he" ? "קרא כעת" : "Read Now"}
+                          </button>
                         ) : (
-                          <button onClick={() => handlePurchaseBook(book.bookId, book.title)} className="btn btn-primary btn-small">
+                          <button onClick={(e) => {
+                            e.stopPropagation();
+                            handlePurchaseBook(book.bookId, book.title);
+                          }} className="btn btn-primary btn-small">
                             {t.buyBook}
                           </button>
                         )}

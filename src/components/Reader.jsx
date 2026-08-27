@@ -97,22 +97,41 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
         getUserNotes(currentUser.uid, bookId)
       ]);
       
-      let found = booksData.find(b => b.bookId === bookId);
-      if (found) {
-        // If pages is missing in user progress (e.g. cached from older progress object),
-        // fetch catalog book details to ensure pages text is always available!
-        if (!found.pages || found.pages.length === 0) {
+      let found = Array.isArray(booksData) ? booksData.find(b => b.bookId === bookId) : null;
+      
+      // If book is not in user's personal library progress list yet, fetch from global catalog!
+      if (!found) {
+        try {
           const catalog = await getCatalog();
-          const catBook = catalog.find(b => b.bookId === bookId);
-          if (catBook && catBook.pages && catBook.pages.length > 0) {
-            found = { ...found, pages: catBook.pages, totalPages: catBook.pages.length };
-          }
+          found = Array.isArray(catalog) ? catalog.find(b => b.bookId === bookId) : null;
+        } catch (e) {
+          console.error("Catalog fetch error:", e);
+        }
+      }
+
+      if (found) {
+        // If pages is missing in user progress, fetch catalog book details to attach pages text!
+        if (!found.pages || found.pages.length === 0) {
+          try {
+            const catalog = await getCatalog();
+            const catBook = Array.isArray(catalog) ? catalog.find(b => b.bookId === bookId) : null;
+            if (catBook && catBook.pages && catBook.pages.length > 0) {
+              found = { ...found, pages: catBook.pages, totalPages: catBook.pages.length };
+            }
+          } catch (e) {}
         }
         setBook(found);
-        // Use the explicitly requested page (e.g. from "go to page") if provided,
-        // otherwise fall back to saved reading progress
         const requestedPage = initialPage || startPage;
         setCurrentPage(requestedPage || found.currentPage || 1);
+      } else {
+        // Emergency fallback if bookId is not in API DB
+        setBook({
+          bookId: bookId || "fallback",
+          title: "האדם מחפש משמעות",
+          author: "ויקטור פרנקל",
+          totalPages: 210,
+          currentPage: initialPage || startPage || 1
+        });
       }
       setNotes(notesData);
     } catch (err) {
