@@ -497,29 +497,6 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
           {lang === "he" ? "←" : "→"}
         </button>
 
-        {/* For image-type pages: persistent "Add Quote" button below the reader (no text to select) */}
-        {isImagePage && !showBottomForm && (
-          <div style={{
-            width: '100%',
-            display: 'flex',
-            justifyContent: 'center',
-            marginTop: '0.75rem'
-          }}>
-            <button
-              onClick={() => { setNewQuote(""); setShowBottomForm(true); }}
-              className="btn btn-primary btn-small"
-              style={{
-                boxShadow: 'var(--shadow-sm)',
-                borderRadius: '10px',
-                fontSize: '0.85rem',
-                padding: '0.55rem 1.25rem'
-              }}
-            >
-              ✍️ הוסף ציטוט או הערה מעמוד זה
-            </button>
-          </div>
-        )}
-
         {/* STEP 1: FLOATING SAVE BUTTON — text-based books only (Side on desktop, below viewport on mobile) */}
         {!isImagePage && selectedText && !showBottomForm && (
           <div 
@@ -579,6 +556,32 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
         )}
 
       </div>
+
+      {/* For image-type pages: persistent "Add Quote" button below the reader (no text to select).
+          Deliberately placed OUTSIDE .book-container (a flex row of nav-button/viewport/nav-button) —
+          it used to live inside that row with width:100%, which competed with the other flex
+          children for space and squeezed the reading window narrower on every image-type page. */}
+      {isImagePage && !showBottomForm && (
+        <div style={{
+          width: '100%',
+          display: 'flex',
+          justifyContent: 'center',
+          marginTop: '0.75rem'
+        }}>
+          <button
+            onClick={() => { setNewQuote(""); setShowBottomForm(true); }}
+            className="btn btn-primary btn-small"
+            style={{
+              boxShadow: 'var(--shadow-sm)',
+              borderRadius: '10px',
+              fontSize: '0.85rem',
+              padding: '0.55rem 1.25rem'
+            }}
+          >
+            ✍️ הוסף ציטוט או הערה מעמוד זה
+          </button>
+        </div>
+      )}
 
       {/* STEP 2: BOTTOM FORM (Opens at the bottom of the page when side button is clicked) */}
       {showBottomForm && (
