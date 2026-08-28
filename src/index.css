@@ -735,8 +735,30 @@ html[dir="ltr"] .form-group {
     border-left: 6px solid #e0d9cb;
     display: flex;
     flex-direction: column;
-    min-height: 400px;
+    /* Fixed height (not just min-height) so the reading window never grows or
+       shrinks when switching between a text page and an image page (chapter
+       dividers etc.) — every page renders inside this same box. */
+    height: 680px;
     overflow: hidden;
+}
+
+.book-page {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.page-decor-header,
+.page-footer {
+    flex-shrink: 0;
+}
+
+.page-text-content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 /* ========================================
@@ -851,7 +873,7 @@ html[dir="ltr"] .form-group {
     .book-page-viewport {
         padding: 1.5rem 1.25rem;
         aspect-ratio: auto;
-        min-height: 50vh;
+        height: 60vh;
         max-width: 100%;
         border-radius: 4px 12px 12px 4px;
         border-left-width: 4px;
@@ -1041,7 +1063,7 @@ html[dir="ltr"] .form-group {
     .book-page-viewport {
         padding: 1.15rem 1rem;
         aspect-ratio: auto;
-        min-height: 45vh;
+        height: 55vh;
         border-radius: 4px 10px 10px 4px;
         border-left-width: 3px;
     }

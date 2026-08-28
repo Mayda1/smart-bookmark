@@ -10,7 +10,8 @@ import {
   getAdminDatabase,
   getUserNotes,
   addNote,
-  deleteNote
+  deleteNote,
+  deleteCatalogBook
 } from "../dbHelper";
 import { translations } from "../translations";
 import { useNavigate } from "react-router-dom";
@@ -146,6 +147,19 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
       }
     };
     reader.readAsText(file);
+  }
+
+  async function handleDeleteCatalogBook(bookId, title) {
+    if (!window.confirm(lang === "he" ? `למחוק את "${title}" מהקטלוג? הפעולה לא הפיכה.` : `Delete "${title}" from the catalog? This can't be undone.`)) {
+      return;
+    }
+    try {
+      await deleteCatalogBook(currentUser.email, bookId);
+      setCatalog(prev => prev.filter(b => b.bookId !== bookId));
+      showToast(lang === "he" ? `הספר "${title}" נמחק מהקטלוג` : `"${title}" deleted from catalog`, "success");
+    } catch (err) {
+      showToast(err.message || "Error deleting book", "error");
+    }
   }
 
   async function handleAddCatalogBook(e) {
@@ -825,6 +839,15 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
                           </button>
                         )}
                       </div>
+                      {showAdminControls && (
+                        <button
+                          onClick={() => handleDeleteCatalogBook(book.bookId, book.title)}
+                          className="btn btn-small"
+                          style={{ marginTop: '0.5rem', width: '100%', color: '#b3452c', border: '1px solid #e3c9c0', background: 'transparent' }}
+                        >
+                          {lang === "he" ? "מחיקה מהקטלוג" : "Delete from catalog"}
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

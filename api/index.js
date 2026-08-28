@@ -32,6 +32,30 @@ function getAdminApp() {
   });
 }
 
+// The physical bookmark reports the page number PRINTED on the physical page —
+// that's the only number a human reader ever sees. Our digital reader, though,
+// indexes pages by scan/reading order (pages[0..N-1]), which drifts away from the
+// printed numbers whenever the source book has unnumbered pages (front matter,
+// chapter dividers, ...). This resolves a reported printed number to the matching
+// internal sequence number (pageNumber) so the digital reader opens on the exact
+// same page the physical bookmark was left on. Falls back to nearest-lower printed
+// page, then to the raw number itself (legacy books with no printedPageNumber data).
+async function resolveSequenceNumber(db, bookId, printedPage) {
+  const pagesRef = db.collection('catalog').doc(bookId).collection('pages');
+
+  const exact = await pagesRef.where('printedPageNumber', '==', printedPage).limit(1).get();
+  if (!exact.empty) return exact.docs[0].data().pageNumber;
+
+  const lower = await pagesRef
+    .where('printedPageNumber', '<=', printedPage)
+    .orderBy('printedPageNumber', 'desc')
+    .limit(1)
+    .get();
+  if (!lower.empty) return lower.docs[0].data().pageNumber;
+
+  return printedPage;
+}
+
 // Update reading progress — called by the physical Smart Bookmark device (deviceId),
 // or usable directly with a userId for testing.
 app.post('/api/update-progress', async (req, res) => {
@@ -59,11 +83,14 @@ app.post('/api/update-progress', async (req, res) => {
       return res.status(404).json({ error: `הספר ${bookId} לא נמצא בספריית המשתמש` });
     }
 
-    const catalogSnap = await db.collection('catalog').doc(bookId).get();
-    const totalPages = catalogSnap.exists ? catalogSnap.data().totalPages : parseInt(currentPage);
-    const page = Math.min(Math.max(1, parseInt(currentPage)), totalPages || parseInt(currentPage));
+    const printedPage = parseInt(currentPage);
+    const sequenceNumber = await resolveSequenceNumber(db, bookId, printedPage);
 
-    await libraryRef.update({ currentPage: page });
+    const catalogSnap = await db.collection('catalog').doc(bookId).get();
+    const totalPages = catalogSnap.exists ? catalogSnap.data().totalPages : sequenceNumber;
+    const page = Math.min(Math.max(1, sequenceNumber), totalPages || sequenceNumber);
+
+    await libraryRef.update({ currentPage: page, lastPrintedPage: printedPage });
 
     return res.json({ success: true, userId, message: `העמוד עודכן ל-${page}` });
   } catch (err) {

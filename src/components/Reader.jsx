@@ -334,6 +334,7 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
               /* IMAGE-TYPE PAGE (chapter divider / illustration — no selectable text) */
               <div style={{
                 flex: 1,
+                minHeight: 0,
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
@@ -388,6 +389,7 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
               /* IMAGE-BASED BOOK (scanned pages fallback) */
               <div style={{
                 flex: 1,
+                minHeight: 0,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -459,7 +461,20 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
             )}
 
             <div className="page-footer" style={{ color: currentTheme.text, opacity: 0.7 }}>
-              <span>— עמוד {currentPage} מתוך {book.totalPages} —</span>
+              {(() => {
+                // Show the page number as PRINTED on the physical page (when we have
+                // that data) rather than our internal scan order — that's the number
+                // the reader can see in the book itself and match against the
+                // physical bookmark. Falls back to the scan index for legacy/demo
+                // books that don't carry printedPageNumber metadata.
+                const printed = pages?.[currentPage - 1]?.printedPageNumber;
+                const lastPrinted = pages?.length ? pages[pages.length - 1]?.printedPageNumber : null;
+                const displayTotal = lastPrinted || book.totalPages;
+                if (pages?.length && printed == null) {
+                  return <span>— עמוד ללא מספור בספר המקורי —</span>;
+                }
+                return <span>— עמוד {printed ?? currentPage} מתוך {displayTotal} —</span>;
+              })()}
             </div>
           </div>
         </div>

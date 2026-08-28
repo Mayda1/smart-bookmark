@@ -103,11 +103,18 @@ export async function addCatalogBook(userEmail, bookDetails) {
       const slice = pages.slice(start, start + CHUNK);
       slice.forEach((page, i) => {
         const pageNumber = start + i + 1;
+        // printedPageNumber = the page number actually printed on the physical page
+        // (may differ from pageNumber, our scan/reading order — front matter, chapter
+        // dividers, etc. mean the two sequences drift apart). Kept null when unknown
+        // (legacy string pages, or a divider/illustration page with no printed number).
+        const printedPageNumber = (typeof page === "object" && page.printedPageNumber != null)
+          ? parseInt(page.printedPageNumber)
+          : null;
         const pageData = typeof page === "string"
-          ? { type: "text", text: page, pageNumber }
+          ? { type: "text", text: page, pageNumber, printedPageNumber }
           : page.type === "image"
-            ? { type: "image", image: page.image, alt: page.alt || "", pageNumber }
-            : { type: "text", text: page.text || "", pageNumber };
+            ? { type: "image", image: page.image, alt: page.alt || "", pageNumber, printedPageNumber }
+            : { type: "text", text: page.text || "", pageNumber, printedPageNumber };
         const pageRef = doc(db, "catalog", bookDoc.id, "pages", String(pageNumber));
         batch.set(pageRef, pageData);
       });
@@ -124,6 +131,27 @@ export async function addCatalogBook(userEmail, bookDetails) {
     cover: bookDetails.cover || "/assets/placeholder_cover.png",
     description: bookDetails.description || ""
   };
+}
+
+// Admin: remove a book from the catalog entirely (its catalog doc + all page docs).
+// Does NOT touch copies already in users' personal libraries or their saved notes.
+export async function deleteCatalogBook(userEmail, bookId) {
+  const normalizedEmail = (userEmail || "").toLowerCase().trim();
+  if (!ADMIN_EMAILS.includes(normalizedEmail)) {
+    throw new Error("הרשאת מנהלת בלבד");
+  }
+
+  const pagesSnap = await getDocs(collection(db, "catalog", bookId, "pages"));
+  const CHUNK = 450;
+  const pageDocs = pagesSnap.docs;
+  for (let start = 0; start < pageDocs.length; start += CHUNK) {
+    const batch = writeBatch(db);
+    pageDocs.slice(start, start + CHUNK).forEach(d => batch.delete(d.ref));
+    await batch.commit();
+  }
+
+  await deleteDoc(doc(db, "catalog", bookId));
+  return { success: true, bookId };
 }
 
 // Fetch the ordered page contents for a book, for the Reader
