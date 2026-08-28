@@ -133,16 +133,21 @@ export async function addCatalogBook(userEmail, bookDetails) {
   };
 }
 
-// Admin: remove a book from the catalog entirely (its catalog doc + all page docs).
-// Does NOT touch copies already in users' personal libraries or their saved notes.
+// Admin: remove a book from the catalog entirely — its catalog doc, all page
+// docs, AND every user's personal library entry for it (otherwise a deleted
+// book lingers as a broken card in "My Library" for anyone who owned it).
+// Saved notes/quotes are left alone — they store their own bookTitle, so
+// they still render fine, and a reader may want to keep a quote even after
+// the book is pulled from the store.
 export async function deleteCatalogBook(userEmail, bookId) {
   const normalizedEmail = (userEmail || "").toLowerCase().trim();
   if (!ADMIN_EMAILS.includes(normalizedEmail)) {
     throw new Error("הרשאת מנהלת בלבד");
   }
 
-  const pagesSnap = await getDocs(collection(db, "catalog", bookId, "pages"));
   const CHUNK = 450;
+
+  const pagesSnap = await getDocs(collection(db, "catalog", bookId, "pages"));
   const pageDocs = pagesSnap.docs;
   for (let start = 0; start < pageDocs.length; start += CHUNK) {
     const batch = writeBatch(db);
@@ -150,7 +155,24 @@ export async function deleteCatalogBook(userEmail, bookId) {
     await batch.commit();
   }
 
+  const librarySnap = await getDocs(query(collectionGroup(db, "library"), where("bookId", "==", bookId)));
+  const libraryDocs = librarySnap.docs;
+  for (let start = 0; start < libraryDocs.length; start += CHUNK) {
+    const batch = writeBatch(db);
+    libraryDocs.slice(start, start + CHUNK).forEach(d => batch.delete(d.ref));
+    await batch.commit();
+  }
+
   await deleteDoc(doc(db, "catalog", bookId));
+  return { success: true, bookId, removedFromLibraries: libraryDocs.length };
+}
+
+// Let a user remove a stale/orphaned entry from their own library — mainly a
+// self-service cleanup for library entries left over from before this file's
+// deleteCatalogBook started cascading, but also a normal "remove this book"
+// action a user might want.
+export async function removeFromLibrary(userId, bookId) {
+  await deleteDoc(doc(db, "users", userId, "library", bookId));
   return { success: true, bookId };
 }
 
@@ -193,8 +215,13 @@ export async function getUserBooks(userId) {
 
   const books = await Promise.all(libraryDocs.map(async (entry) => {
     const catalogSnap = await getDoc(doc(db, "catalog", entry.bookId));
-    const catalogData = catalogSnap.exists() ? catalogSnap.data() : {};
-    return { ...catalogData, ...entry };
+    if (!catalogSnap.exists()) {
+      // The book was pulled from the catalog (or this is a leftover entry from
+      // before deleteCatalogBook cascaded to libraries) — surface it clearly
+      // instead of silently producing NaN%/undefined in the UI.
+      return { ...entry, catalogMissing: true, title: entry.title || "ספר שהוסר מהקטלוג", totalPages: entry.totalPages || null };
+    }
+    return { ...catalogSnap.data(), ...entry, catalogMissing: false };
   }));
 
   return books;

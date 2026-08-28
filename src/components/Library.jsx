@@ -11,7 +11,8 @@ import {
   getUserNotes,
   addNote,
   deleteNote,
-  deleteCatalogBook
+  deleteCatalogBook,
+  removeFromLibrary
 } from "../dbHelper";
 import { translations } from "../translations";
 import { useNavigate } from "react-router-dom";
@@ -147,6 +148,19 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
       }
     };
     reader.readAsText(file);
+  }
+
+  async function handleRemoveFromLibrary(bookId, title) {
+    if (!window.confirm(lang === "he" ? `להסיר את "${title}" מהספרייה שלך?` : `Remove "${title}" from your library?`)) {
+      return;
+    }
+    try {
+      await removeFromLibrary(currentUser.uid, bookId);
+      setBooks(prev => prev.filter(b => b.bookId !== bookId));
+      showToast(lang === "he" ? "הספר הוסר מהספרייה שלך" : "Removed from your library", "success");
+    } catch (err) {
+      showToast(err.message || "Error removing book", "error");
+    }
   }
 
   async function handleDeleteCatalogBook(bookId, title) {
@@ -477,6 +491,29 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
           ) : (
             <div className="books-grid">
               {books.map(book => {
+                if (book.catalogMissing) {
+                  return (
+                    <div key={book.bookId} className="book-card" style={{ cursor: 'default', opacity: 0.75 }}>
+                      <div className="cover-wrapper">
+                        <img src="/assets/placeholder_cover.png" alt="Book Cover" className="book-cover" />
+                      </div>
+                      <div className="book-info">
+                        <h3 className="book-title">{book.title}</h3>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0.4rem 0' }}>
+                          {lang === "he" ? "הספר הוסר מהקטלוג ואינו זמין עוד לקריאה." : "This book was removed from the catalog and is no longer available."}
+                        </p>
+                        <button
+                          onClick={() => handleRemoveFromLibrary(book.bookId, book.title)}
+                          className="btn btn-small"
+                          style={{ width: '100%', color: '#b3452c', border: '1px solid #e3c9c0', background: 'transparent' }}
+                        >
+                          {lang === "he" ? "הסרה מהספרייה שלי" : "Remove from my library"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
                 const current = book.currentPage || 1;
                 const total = book.totalPages;
                 const pct = Math.round((current / total) * 100);
