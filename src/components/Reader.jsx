@@ -335,6 +335,8 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
               <div style={{
                 flex: 1,
                 minHeight: 0,
+                minWidth: 0,
+                width: '100%',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
@@ -347,6 +349,8 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
                   style={{
                     maxWidth: '100%',
                     maxHeight: '100%',
+                    width: 'auto',
+                    height: 'auto',
                     objectFit: 'contain',
                     borderRadius: '4px',
                     userSelect: 'none'
@@ -390,6 +394,8 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
               <div style={{
                 flex: 1,
                 minHeight: 0,
+                minWidth: 0,
+                width: '100%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -401,6 +407,8 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
                   style={{
                     maxWidth: '100%',
                     maxHeight: '100%',
+                    width: 'auto',
+                    height: 'auto',
                     objectFit: 'contain',
                     borderRadius: '4px',
                     userSelect: 'none'

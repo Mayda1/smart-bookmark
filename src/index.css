@@ -726,11 +726,19 @@ html[dir="ltr"] .form-group {
 
 .book-page-viewport {
     flex-grow: 1;
+    flex-shrink: 1;
+    /* Without this, a flex item's default min-width is "auto", which lets a
+       wide <img> further down the tree (its *intrinsic* pixel size, not its
+       CSS max-width) force this box wider than 580px — that's what was
+       making the reading window widen/shift specifically on image pages. */
+    min-width: 0;
     background: #fbf9f5;
     color: var(--text-primary);
     border-radius: 6px 18px 18px 6px;
     box-shadow: var(--shadow-lg), inset 4px 0 8px rgba(0, 0, 0, 0.04);
+    width: 580px;
     max-width: 580px;
+    box-sizing: border-box;
     padding: 2rem 2rem;
     border-left: 6px solid #e0d9cb;
     display: flex;
@@ -747,6 +755,7 @@ html[dir="ltr"] .form-group {
     flex-direction: column;
     height: 100%;
     min-height: 0;
+    min-width: 0;
     overflow: hidden;
 }
 
@@ -874,6 +883,7 @@ html[dir="ltr"] .form-group {
         padding: 1.5rem 1.25rem;
         aspect-ratio: auto;
         height: 60vh;
+        width: 100%;
         max-width: 100%;
         border-radius: 4px 12px 12px 4px;
         border-left-width: 4px;
