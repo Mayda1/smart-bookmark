@@ -29,6 +29,7 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
   const [loading, setLoading] = useState(true);
   const [showAdminForm, setShowAdminForm] = useState(false);
   const [showDeviceModal, setShowDeviceModal] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState(null); // { message, confirmLabel, danger?, onConfirm }
   const [showNoteForm, setShowNoteForm] = useState(false);
   const [storeSubTab, setStoreSubTab] = useState("recommendations"); // 'recommendations' or 'browse'
 
@@ -150,30 +151,41 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
     reader.readAsText(file);
   }
 
-  async function handleRemoveFromLibrary(bookId, title) {
-    if (!window.confirm(lang === "he" ? `להסיר את "${title}" מהספרייה שלך?` : `Remove "${title}" from your library?`)) {
-      return;
-    }
-    try {
-      await removeFromLibrary(currentUser.uid, bookId);
-      setBooks(prev => prev.filter(b => b.bookId !== bookId));
-      showToast(lang === "he" ? "הספר הוסר מהספרייה שלך" : "Removed from your library", "success");
-    } catch (err) {
-      showToast(err.message || "Error removing book", "error");
-    }
+  function handleRemoveFromLibrary(bookId, title) {
+    setConfirmDialog({
+      message: lang === "he" ? `להסיר את "${title}" מהספרייה שלך?` : `Remove "${title}" from your library?`,
+      confirmLabel: lang === "he" ? "הסרה" : "Remove",
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        try {
+          await removeFromLibrary(currentUser.uid, bookId);
+          setBooks(prev => prev.filter(b => b.bookId !== bookId));
+          showToast(lang === "he" ? "הספר הוסר מהספרייה שלך" : "Removed from your library", "success");
+        } catch (err) {
+          console.error("removeFromLibrary failed:", err);
+          showToast(err.message || "Error removing book", "error");
+        }
+      }
+    });
   }
 
-  async function handleDeleteCatalogBook(bookId, title) {
-    if (!window.confirm(lang === "he" ? `למחוק את "${title}" מהקטלוג? הפעולה לא הפיכה.` : `Delete "${title}" from the catalog? This can't be undone.`)) {
-      return;
-    }
-    try {
-      await deleteCatalogBook(currentUser.email, bookId);
-      setCatalog(prev => prev.filter(b => b.bookId !== bookId));
-      showToast(lang === "he" ? `הספר "${title}" נמחק מהקטלוג` : `"${title}" deleted from catalog`, "success");
-    } catch (err) {
-      showToast(err.message || "Error deleting book", "error");
-    }
+  function handleDeleteCatalogBook(bookId, title) {
+    setConfirmDialog({
+      message: lang === "he" ? `למחוק את "${title}" מהקטלוג? הפעולה לא הפיכה.` : `Delete "${title}" from the catalog? This can't be undone.`,
+      confirmLabel: lang === "he" ? "מחיקה" : "Delete",
+      danger: true,
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        try {
+          await deleteCatalogBook(currentUser.email, bookId);
+          setCatalog(prev => prev.filter(b => b.bookId !== bookId));
+          showToast(lang === "he" ? `הספר "${title}" נמחק מהקטלוג` : `"${title}" deleted from catalog`, "success");
+        } catch (err) {
+          console.error("deleteCatalogBook failed:", err);
+          showToast((lang === "he" ? "שגיאה במחיקת הספר: " : "Error deleting book: ") + (err.message || err.code || "Unknown error"), "error");
+        }
+      }
+    });
   }
 
   async function handleAddCatalogBook(e) {
@@ -284,6 +296,44 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
 
   return (
     <div className="library-container">
+      {/* Confirm dialog (replaces window.confirm — browsers silently swallow
+          native confirm()/alert() calls after the user has dismissed several
+          of them, which made the delete/remove buttons look like they were
+          doing nothing) */}
+      {confirmDialog && (
+        <div
+          onClick={() => setConfirmDialog(null)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'var(--bg-card, #fff)', borderRadius: '12px', padding: '1.5rem',
+              maxWidth: '380px', width: '90%', boxShadow: '0 12px 40px rgba(0,0,0,0.25)'
+            }}
+          >
+            <p style={{ margin: '0 0 1.25rem', fontSize: '1rem', lineHeight: 1.5 }}>{confirmDialog.message}</p>
+            <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+              <button onClick={() => setConfirmDialog(null)} className="btn btn-small">
+                {lang === "he" ? "ביטול" : "Cancel"}
+              </button>
+              <button
+                onClick={confirmDialog.onConfirm}
+                className="btn btn-small"
+                style={confirmDialog.danger
+                  ? { background: '#b3452c', color: '#fff', border: '1px solid #b3452c' }
+                  : { background: 'var(--primary-slate)', color: '#fff' }}
+              >
+                {confirmDialog.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="main-header" style={{ marginTop: 0 }}>
         <div className="logo-area">
