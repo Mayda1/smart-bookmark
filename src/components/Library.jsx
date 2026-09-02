@@ -112,7 +112,11 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
         showToast(lang === "he" ? "הנתונים עודכנו בהצלחה" : "Refreshed successfully", "success");
       }
     } catch (err) {
-      showToast(lang === "he" ? "שגיאה בטעינת הנתונים מהשרת" : "Error loading data", "error");
+      console.error("Library loadData failed:", err);
+      showToast(
+        (lang === "he" ? "שגיאה בטעינת הנתונים מהשרת: " : "Error loading data: ") + (err.message || err.code || "Unknown error"),
+        "error"
+      );
     } finally {
       setLoading(false);
     }
