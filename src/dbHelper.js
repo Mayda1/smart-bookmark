@@ -227,12 +227,27 @@ export async function getUserBooks(userId) {
   return books;
 }
 
-export async function updateBookProgress(userId, bookId, pageNumber) {
+export async function updateBookProgress(userId, bookId, pageNumber, printedPageNumber = null) {
   const catalogSnap = await getDoc(doc(db, "catalog", bookId));
   const totalPages = catalogSnap.exists() ? catalogSnap.data().totalPages : parseInt(pageNumber);
   const page = Math.min(Math.max(1, parseInt(pageNumber)), totalPages || parseInt(pageNumber));
 
-  await updateDoc(doc(db, "users", userId, "library", bookId), { currentPage: page });
+  // Keep lastPrintedPage in sync with currentPage on every write, not just
+  // when the physical bookmark itself calls /api/update-progress. The
+  // bookmark's own screen (see api/index.js's /api/bookmark/scan) prefers
+  // lastPrintedPage when it's set, and falls back to recomputing it from
+  // currentPage only when it's null. Without writing it here too, a page
+  // turned from the website would leave behind whatever printed-page number
+  // the device last wrote -- so the bookmark's screen would show a stale,
+  // wrong page even though the digital reader itself moved on correctly.
+  // Passing null (the printed number couldn't be resolved, e.g. a legacy
+  // book with no printedPageNumber metadata) explicitly clears the field so
+  // the scan endpoint falls back to recomputing it, instead of leaving a
+  // stale value in place.
+  await updateDoc(doc(db, "users", userId, "library", bookId), {
+    currentPage: page,
+    lastPrintedPage: printedPageNumber != null ? parseInt(printedPageNumber) : null
+  });
   return { success: true, userId, message: `העמוד עודכן ל-${page}` };
 }
 

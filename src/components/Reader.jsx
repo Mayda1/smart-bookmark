@@ -220,7 +220,12 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
     setShowBottomForm(false);
 
     try {
-      await updateBookProgress(currentUser.uid, bookId, newPage);
+      // Pass along the printed page number for this page (when the book has
+      // that metadata) so lastPrintedPage stays in sync -- otherwise the
+      // physical bookmark's screen can end up showing a stale printed page
+      // after navigating from the website. See updateBookProgress().
+      const printedPageNumber = pages?.[newPage - 1]?.printedPageNumber ?? null;
+      await updateBookProgress(currentUser.uid, bookId, newPage, printedPageNumber);
     } catch (err) {
       console.error("Progress update error:", err);
     } finally {
