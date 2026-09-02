@@ -237,6 +237,27 @@ export async function updateBookProgress(userId, bookId, pageNumber) {
 }
 
 // ==========================================
+// NFC TAGS — nfcTags/{tagUid} = { bookId }
+// Links a physical NFC sticker (on a physical copy of a book) to a catalog
+// bookId. Global/shared on purpose: the tag only says WHICH BOOK, not who
+// owns it — the bookmark's own deviceId->uid link supplies the "who" at
+// scan time (see /api/bookmark/scan on the server).
+// ==========================================
+
+export async function linkNfcTag(userId, tagUid, bookId) {
+  const cleanTagUid = (tagUid || "").trim().toUpperCase();
+  if (!cleanTagUid) throw new Error("תג NFC לא תקין");
+
+  await setDoc(doc(db, "nfcTags", cleanTagUid), {
+    bookId,
+    linkedBy: userId,
+    linkedAt: serverTimestamp()
+  });
+
+  return { success: true, tagUid: cleanTagUid, bookId };
+}
+
+// ==========================================
 // BOOKMARK DEVICES — devices/{deviceId} = { uid }
 // (Progress updates *from* the physical device go through /api/update-progress
 //  on the server, using the Firebase Admin SDK, since the hardware isn't a

@@ -44,6 +44,17 @@ service cloud.firestore {
       }
     }
 
+    // Physical NFC sticker -> catalog book mapping. Self-service: any signed-in
+    // reader can link a sticker on their physical copy to a book from the
+    // Reader page (via the bookmark's Bluetooth NFC-link step). Global/shared
+    // because the mapping only identifies WHICH BOOK the sticker represents —
+    // combined server-side with the scanning device's own owner, not with
+    // whoever registered the tag.
+    match /nfcTags/{tagUid} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
     // Bookmark hardware device -> user mapping.
     // A signed-in user may link a new device to themselves; only the admin may
     // change/delete an existing link (progress updates from the device itself

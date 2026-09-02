@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
-import { getUserBooks, getCatalog, getBookPages, updateBookProgress, getUserNotes, addNote, deleteNote } from "../dbHelper";
+import { getUserBooks, getCatalog, getBookPages, updateBookProgress, getUserNotes, addNote, deleteNote, linkNfcTag } from "../dbHelper";
 import { translations } from "../translations";
 import NoteMenu from "./NoteMenu";
+import { BookmarkBLE, isWebBluetoothSupported } from "../bookmarkBle";
 
 // Subtle marker highlight style
 const HIGHLIGHT_STYLE = {
@@ -90,6 +91,34 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
   // Language
   const lang = localStorage.getItem("app_lang") || "he";
   const t = translations[lang];
+
+  // Link the physical NFC sticker on this book's cover to this catalog
+  // bookId, so the bookmark hardware can recognize it on its own from then
+  // on (see bookmarkBle.js — this is the only place Bluetooth is used from
+  // the Reader; day-to-day page sync doesn't need it).
+  const [ble] = useState(() => new BookmarkBLE());
+  const [nfcLinking, setNfcLinking] = useState(false);
+
+  useEffect(() => () => ble.disconnect(), [ble]);
+
+  async function handleLinkNfcTag() {
+    setNfcLinking(true);
+    try {
+      if (!ble.isConnected) {
+        await ble.connect();
+      }
+      showToast(lang === "he" ? "קרבי את הספר לחיישן NFC של הסימנייה..." : "Hold the book near the bookmark's NFC reader...", "info");
+      const tagUid = await ble.startNfcLinking();
+      await linkNfcTag(currentUser.uid, tagUid, bookId);
+      showToast(lang === "he" ? "התג קושר לספר הזה בהצלחה!" : "Tag linked to this book!", "success");
+    } catch (err) {
+      if (err.name !== "NotFoundError") {
+        showToast(err.message || "Error linking NFC tag", "error");
+      }
+    } finally {
+      setNfcLinking(false);
+    }
+  }
 
   // Load book details and quotes
   async function loadData() {
@@ -293,6 +322,19 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
             <button onClick={() => setTheme("white")} className={`theme-dot white ${theme === "white" ? "active" : ""}`} title="לבן" />
             <button onClick={() => setTheme("dark")} className={`theme-dot dark ${theme === "dark" ? "active" : ""}`} title="לילה כהה" />
           </div>
+
+          {isWebBluetoothSupported() && (
+            <div className="control-group">
+              <button
+                onClick={handleLinkNfcTag}
+                disabled={nfcLinking}
+                className="btn-text-control"
+                title={lang === "he" ? "קשר תג NFC פיזי לספר הזה, כדי שהסימנייה תזהה אותו לבד" : "Link a physical NFC tag to this book"}
+              >
+                🔖 {nfcLinking ? "..." : (lang === "he" ? "קשר תג NFC" : "Link NFC tag")}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

@@ -56,6 +56,96 @@ async function resolveSequenceNumber(db, bookId, printedPage) {
   return printedPage;
 }
 
+// Look up the printed page number for a given internal sequence number —
+// mirror image of resolveSequenceNumber, used when a library doc hasn't
+// been touched by the hardware yet (no lastPrintedPage saved) so the
+// bookmark still has something sensible to show.
+async function resolvePrintedPage(db, bookId, sequenceNumber) {
+  const pagesRef = db.collection('catalog').doc(bookId).collection('pages');
+  const snap = await pagesRef.where('pageNumber', '==', sequenceNumber).limit(1).get();
+  if (!snap.empty) {
+    const printed = snap.docs[0].data().printedPageNumber;
+    if (printed != null) return printed;
+  }
+  return sequenceNumber;
+}
+
+// The last (highest) printed page number in the book — used to show
+// "page X of Y" on the bookmark's tiny screen the same way the site does.
+async function getTotalPrintedPages(db, bookId, fallbackTotal) {
+  const pagesRef = db.collection('catalog').doc(bookId).collection('pages');
+  const snap = await pagesRef.orderBy('pageNumber', 'desc').limit(1).get();
+  if (!snap.empty) {
+    const printed = snap.docs[0].data().printedPageNumber;
+    if (printed != null) return printed;
+  }
+  return fallbackTotal;
+}
+
+// Resolve a physical NFC tag scan into "who is reading what, and where they
+// left off" — called directly by the bookmark hardware over WiFi (no phone
+// or browser involved). Two independent lookups combine to answer this:
+//   deviceId -> uid       (already set up from the site's "Link Device" step)
+//   tagUid   -> bookId    (set up once from the Reader page's NFC-link button)
+app.post('/api/bookmark/scan', async (req, res) => {
+  try {
+    getAdminApp();
+    const db = admin.firestore();
+    const { deviceId, tagUid } = req.body || {};
+
+    if (!deviceId || !tagUid) {
+      return res.status(400).json({ error: "נתונים חסרים" });
+    }
+
+    const cleanDeviceId = String(deviceId).trim().toUpperCase();
+    const cleanTagUid = String(tagUid).trim().toUpperCase();
+
+    const [deviceSnap, tagSnap] = await Promise.all([
+      db.collection('devices').doc(cleanDeviceId).get(),
+      db.collection('nfcTags').doc(cleanTagUid).get()
+    ]);
+
+    if (!deviceSnap.exists) {
+      return res.status(404).json({ error: `המכשיר ${cleanDeviceId} עדיין לא קושר לשום חשבון משתמש באתר` });
+    }
+    if (!tagSnap.exists) {
+      return res.status(404).json({ error: "התג הזה עדיין לא קושר לספר" });
+    }
+
+    const uid = deviceSnap.data().uid;
+    const bookId = tagSnap.data().bookId;
+
+    const [libSnap, catalogSnap] = await Promise.all([
+      db.collection('users').doc(uid).collection('library').doc(bookId).get(),
+      db.collection('catalog').doc(bookId).get()
+    ]);
+
+    if (!libSnap.exists) {
+      return res.status(404).json({ error: "הספר הזה לא נמצא בספרייה של המשתמש המקושר למכשיר" });
+    }
+
+    const libData = libSnap.data();
+    const catalogData = catalogSnap.exists ? catalogSnap.data() : {};
+    const sequenceNumber = libData.currentPage || 1;
+
+    const printedPage = libData.lastPrintedPage != null
+      ? libData.lastPrintedPage
+      : await resolvePrintedPage(db, bookId, sequenceNumber);
+
+    const totalPrintedPages = await getTotalPrintedPages(db, bookId, catalogData.totalPages || sequenceNumber);
+
+    return res.json({
+      bookId,
+      title: catalogData.title || "",
+      printedPage,
+      totalPrintedPages
+    });
+  } catch (err) {
+    console.error("bookmark/scan exception:", err);
+    return res.status(500).json({ error: "שגיאה באיתור הספר: " + (err.message || "Unknown error") });
+  }
+});
+
 // Update reading progress — called by the physical Smart Bookmark device (deviceId),
 // or usable directly with a userId for testing.
 app.post('/api/update-progress', async (req, res) => {

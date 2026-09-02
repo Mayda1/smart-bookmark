@@ -17,6 +17,7 @@ import {
 import { translations } from "../translations";
 import { useNavigate } from "react-router-dom";
 import NoteMenu from "./NoteMenu";
+import { BookmarkBLE, isWebBluetoothSupported } from "../bookmarkBle";
 
 export default function Library({ onOpenBook, showToast, refreshTrigger }) {
   const { currentUser, logout } = useAuth();
@@ -61,6 +62,22 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
 
   const [deviceIdInput, setDeviceIdInput] = useState("");
   const [deviceLoading, setDeviceLoading] = useState(false);
+
+  // WiFi setup over Bluetooth — a one-time step so the bookmark can talk to
+  // the server directly from then on (see bookmarkBle.js for why BLE is
+  // otherwise unnecessary for day-to-day use).
+  const [ble] = useState(() => new BookmarkBLE());
+  const [bleConnected, setBleConnected] = useState(false);
+  const [bleConnecting, setBleConnecting] = useState(false);
+  const [wifiSsidInput, setWifiSsidInput] = useState("");
+  const [wifiPasswordInput, setWifiPasswordInput] = useState("");
+  const [wifiSending, setWifiSending] = useState(false);
+
+  useEffect(() => {
+    ble.onConnectionChanged(setBleConnected);
+    return () => ble.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const navigate = useNavigate();
 
@@ -288,6 +305,39 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
     }
   }
 
+  async function handleBleConnect() {
+    setBleConnecting(true);
+    try {
+      await ble.connect();
+      showToast(lang === "he" ? `מחוברת ל-${ble.deviceName}` : `Connected to ${ble.deviceName}`, "success");
+    } catch (err) {
+      if (err.name !== "NotFoundError") { // user just cancelled the device picker
+        showToast(err.message || "Bluetooth connection failed", "error");
+      }
+    } finally {
+      setBleConnecting(false);
+    }
+  }
+
+  async function handleSendWifi(e) {
+    e.preventDefault();
+    if (!wifiSsidInput.trim()) return;
+    setWifiSending(true);
+    try {
+      await ble.sendWifiCredentials(wifiSsidInput.trim(), wifiPasswordInput);
+      showToast(
+        lang === "he"
+          ? "פרטי הרשת נשלחו — המסך של הסימנייה יראה אם החיבור הצליח"
+          : "WiFi details sent — check the bookmark's screen for the connection result",
+        "success"
+      );
+    } catch (err) {
+      showToast(err.message || "Error sending WiFi details", "error");
+    } finally {
+      setWifiSending(false);
+    }
+  }
+
   function getUserEmailByUid(uid) {
     if (!adminDbData || !adminDbData.users) return uid;
     const u = adminDbData.users.find(user => user.uid === uid);
@@ -420,11 +470,15 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
       {showDeviceModal && (
         <div className="add-book-form">
           <h3 style={{ fontFamily: 'var(--font-serif)', marginBottom: '0.5rem' }}>{t.linkDeviceModalTitle}</h3>
-          <p className="section-desc" style={{ fontSize: '0.9rem', marginBottom: '1rem' }}>{t.linkDeviceDesc}</p>
+          <p className="section-desc" style={{ fontSize: '0.9rem', marginBottom: '1rem' }}>
+            {lang === "he"
+              ? "מספר הזיהוי מופיע על המסך הקטן של הסימנייה עצמה (למשל BOOKIFY-1A2B)."
+              : t.linkDeviceDesc}
+          </p>
           <form onSubmit={handleLinkDevice} className="form-row">
             <div className="form-group" style={{ flex: 2 }}>
               <label>{t.deviceId}</label>
-              <input type="text" value={deviceIdInput} onChange={(e) => setDeviceIdInput(e.target.value)} required placeholder="BOOKMARK_01 / AA:BB:CC:11:22:33" />
+              <input type="text" value={deviceIdInput} onChange={(e) => setDeviceIdInput(e.target.value)} required placeholder="BOOKIFY-1A2B" />
             </div>
             <div className="form-group" style={{ flex: 1, justifyContent: 'flex-end' }}>
               <button disabled={deviceLoading} type="submit" className="btn btn-primary" style={{ marginTop: '1.4rem' }}>
@@ -432,6 +486,48 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
               </button>
             </div>
           </form>
+
+          <hr style={{ margin: '1.25rem 0', border: 'none', borderTop: '1px solid var(--card-border, #e5e0d8)' }} />
+
+          <h3 style={{ fontFamily: 'var(--font-serif)', marginBottom: '0.5rem' }}>
+            {lang === "he" ? "חיבור הסימנייה לרשת WiFi" : "Connect the bookmark to WiFi"}
+          </h3>
+          <p className="section-desc" style={{ fontSize: '0.9rem', marginBottom: '1rem' }}>
+            {lang === "he"
+              ? "צעד חד-פעמי: מתחברים דרך Bluetooth ושולחים לסימנייה את פרטי הרשת. מרגע שהיא מחוברת לאינטרנט היא כבר לא צריכה טלפון או דפדפן כדי לסנכרן עמודים."
+              : "One-time step: connect over Bluetooth and send the bookmark your WiFi details. Once it's online it no longer needs a phone or browser to sync pages."}
+          </p>
+
+          {!isWebBluetoothSupported() ? (
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              {lang === "he" ? "הדפדפן הזה לא תומך ב-Web Bluetooth. נסי כרום במחשב או באנדרואיד." : "This browser doesn't support Web Bluetooth. Try Chrome on desktop or Android."}
+            </p>
+          ) : !bleConnected ? (
+            <button onClick={handleBleConnect} disabled={bleConnecting} className="btn btn-secondary" style={{ width: '100%' }}>
+              {bleConnecting ? "..." : (lang === "he" ? "התחברות לסימנייה דרך Bluetooth" : "Connect to bookmark via Bluetooth")}
+            </button>
+          ) : (
+            <>
+              <p style={{ fontSize: '0.85rem', color: 'var(--success, #2e7d32)', marginBottom: '0.75rem' }}>
+                {lang === "he" ? `מחוברת: ${ble.deviceName}` : `Connected: ${ble.deviceName}`}
+              </p>
+              <form onSubmit={handleSendWifi} className="form-row">
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>{lang === "he" ? "שם רשת (SSID)" : "Network name (SSID)"}</label>
+                  <input type="text" value={wifiSsidInput} onChange={(e) => setWifiSsidInput(e.target.value)} required />
+                </div>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>{lang === "he" ? "סיסמה" : "Password"}</label>
+                  <input type="password" value={wifiPasswordInput} onChange={(e) => setWifiPasswordInput(e.target.value)} />
+                </div>
+                <div className="form-group" style={{ flex: 1, justifyContent: 'flex-end' }}>
+                  <button disabled={wifiSending} type="submit" className="btn btn-primary" style={{ marginTop: '1.4rem' }}>
+                    {wifiSending ? "..." : (lang === "he" ? "שליחה לסימנייה" : "Send to bookmark")}
+                  </button>
+                </div>
+              </form>
+            </>
+          )}
         </div>
       )}
 
