@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
-import admin from 'firebase-admin';
+import { initializeApp, getApps, getApp, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
 const app = express();
 
@@ -17,19 +18,30 @@ app.use(express.json());
 // satisfy the client-side security rules — this trusted endpoint (using
 // the Admin SDK, which bypasses those rules) resolves its deviceId to the
 // linked user and writes the progress on their behalf.
+//
+// NOTE: firebase-admin v12+ dropped the old `admin.apps` / `admin.firestore()`
+// namespace object from its default ESM export — only the modular
+// `firebase-admin/app` + `firebase-admin/firestore` subpackages work now.
+// (The previous version of this file used the old namespace pattern, which
+// silently threw "Cannot read properties of undefined (reading 'length')"
+// on every call — this endpoint had never actually worked.)
 // ==========================================
 
 function getAdminApp() {
-  if (admin.apps.length > 0) return admin.app();
+  if (getApps().length > 0) return getApp();
 
   const encoded = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
   if (!encoded) {
     throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set");
   }
   const serviceAccount = JSON.parse(Buffer.from(encoded, 'base64').toString('utf-8'));
-  return admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
+  return initializeApp({
+    credential: cert(serviceAccount)
   });
+}
+
+function getDb() {
+  return getFirestore(getAdminApp());
 }
 
 // The physical bookmark reports the page number PRINTED on the physical page —
@@ -89,8 +101,7 @@ async function getTotalPrintedPages(db, bookId, fallbackTotal) {
 //   tagUid   -> bookId    (set up once from the Reader page's NFC-link button)
 app.post('/api/bookmark/scan', async (req, res) => {
   try {
-    getAdminApp();
-    const db = admin.firestore();
+    const db = getDb();
     const { deviceId, tagUid } = req.body || {};
 
     if (!deviceId || !tagUid) {
@@ -150,8 +161,7 @@ app.post('/api/bookmark/scan', async (req, res) => {
 // or usable directly with a userId for testing.
 app.post('/api/update-progress', async (req, res) => {
   try {
-    getAdminApp();
-    const db = admin.firestore();
+    const db = getDb();
     let { userId, deviceId, bookId, currentPage } = req.body || {};
 
     if (!userId && deviceId) {
