@@ -104,9 +104,17 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
       setNotes(notesData);
       if (booksData.length > 0) setNoteBookId(booksData[0].bookId);
 
+      // The admin "raw database inspection" tab is a nice-to-have debug view, not
+      // part of the reader/bookmark flow -- a rules hiccup on it (e.g. a
+      // collectionGroup query) shouldn't blow up the whole page load with a red
+      // error every time someone opens the library.
       if (isActualAdmin) {
-        const dbData = await getAdminDatabase(currentUser.email);
-        setAdminDbData(dbData);
+        try {
+          const dbData = await getAdminDatabase(currentUser.email);
+          setAdminDbData(dbData);
+        } catch (adminErr) {
+          console.error("Admin DB view failed to load (non-fatal):", adminErr);
+        }
       }
 
       if (showNotification) {
