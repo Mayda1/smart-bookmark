@@ -294,58 +294,12 @@ export async function getPendingNfcTag(deviceId) {
   return { tagUid: pending.tagUid, scannedAt: toMillis(pending.scannedAt) };
 }
 
-// ==========================================
-// ADMIN — raw database inspection
-// ==========================================
-
-export async function getAdminDatabase(userEmail) {
-  const normalizedEmail = (userEmail || "").toLowerCase().trim();
-  if (!ADMIN_EMAILS.includes(normalizedEmail)) {
-    throw new Error("הרשאת מנהלת בלבד");
-  }
-
-  const tag = (label, p) => p.catch(e => { e.message = `[admin:${label}] ${e.message}`; throw e; });
-  const [usersSnap, catalogSnap, librarySnap, notesSnap, devicesSnap, nfcTagsSnap] = await Promise.all([
-    tag("users", getDocs(collection(db, "users"))),
-    tag("catalog", getDocs(collection(db, "catalog"))),
-    tag("library(group)", getDocs(collectionGroup(db, "library"))),
-    tag("notes(group)", getDocs(collectionGroup(db, "notes"))),
-    tag("devices", getDocs(collection(db, "devices"))),
-    tag("nfcTags", getDocs(collection(db, "nfcTags")))
-  ]);
-
-  const users = usersSnap.docs.map(d => ({
-    uid: d.id,
-    email: d.data().email,
-    role: ADMIN_EMAILS.includes((d.data().email || "").toLowerCase()) ? "admin" : "user"
-  }));
-
-  const catalog = catalogSnap.docs.map(d => ({ bookId: d.id, ...d.data() }));
-
-  const progress = {};
-  librarySnap.docs.forEach(d => {
-    const uid = d.ref.parent.parent.id;
-    if (!progress[uid]) progress[uid] = [];
-    progress[uid].push({ bookId: d.id, ...d.data() });
-  });
-
-  const notes = {};
-  notesSnap.docs.forEach(d => {
-    const uid = d.ref.parent.parent.id;
-    if (!notes[uid]) notes[uid] = [];
-    notes[uid].push({ noteId: d.id, ...d.data() });
-  });
-
-  const devices = {};
-  devicesSnap.docs.forEach(d => {
-    // Keep the full doc (uid + lastUnlinkedTag, when a scan is waiting to be
-    // claimed) rather than just the uid — the admin panel's Devices table
-    // uses this to show a pending NFC-tag scan directly, without needing to
-    // trust a toast that might have been missed.
-    devices[d.id] = { uid: d.data().uid, lastUnlinkedTag: d.data().lastUnlinkedTag || null };
-  });
-
-  const nfcTags = nfcTagsSnap.docs.map(d => ({ tagUid: d.id, ...d.data() }));
-
-  return { users, catalog, progress, devices, notes, nfcTags };
-}
+// NOTE: there used to be a getAdminDatabase() here powering an in-app "raw
+// database inspection" admin tab. It was removed — Firestore's own rules
+// made a client-side collectionGroup read of every user's library/notes
+// unreliable (a permission edge case could leave the read hanging forever
+// instead of failing cleanly), and it duplicated a tool that already exists
+// and works: the Firebase Console. To inspect real data (users, devices,
+// nfcTags, catalog, per-user library/notes), use the Firebase Console's
+// Firestore Data tab directly — it reads with full admin rights and isn't
+// subject to any of these client-SDK rule edge cases.

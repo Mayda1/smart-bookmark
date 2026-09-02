@@ -5,9 +5,8 @@ import {
   getCatalog, 
   addCatalogBook, 
   purchaseBook, 
-  linkBookmarkDevice, 
+  linkBookmarkDevice,
   getUserDevices,
-  getAdminDatabase,
   getUserNotes,
   addNote,
   deleteNote,
@@ -20,12 +19,11 @@ import NoteMenu from "./NoteMenu";
 
 export default function Library({ onOpenBook, showToast, refreshTrigger }) {
   const { currentUser, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState("library"); // 'library', 'store', 'journal', or 'admin_db'
+  const [activeTab, setActiveTab] = useState("library"); // 'library', 'store', or 'journal'
   const [books, setBooks] = useState([]);
   const [catalog, setCatalog] = useState([]);
   const [linkedDevices, setLinkedDevices] = useState([]);
   const [notes, setNotes] = useState([]);
-  const [adminDbData, setAdminDbData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAdminForm, setShowAdminForm] = useState(false);
   const [showDeviceModal, setShowDeviceModal] = useState(false);
@@ -87,18 +85,10 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
       setNotes(notesData);
       if (booksData.length > 0) setNoteBookId(booksData[0].bookId);
 
-      // The admin "raw database inspection" tab is a nice-to-have debug view, not
-      // part of the reader/bookmark flow -- a rules hiccup on it (e.g. a
-      // collectionGroup query) shouldn't blow up the whole page load with a red
-      // error every time someone opens the library.
-      if (isActualAdmin) {
-        try {
-          const dbData = await getAdminDatabase(currentUser.email);
-          setAdminDbData(dbData);
-        } catch (adminErr) {
-          console.error("Admin DB view failed to load (non-fatal):", adminErr);
-        }
-      }
+      // Raw database inspection (users/devices/nfcTags/etc) now happens
+      // directly in the Firebase Console -- that's the real, reliable admin
+      // view of Firestore, with none of the client-side security-rule edge
+      // cases (e.g. collectionGroup queries) a custom in-app viewer runs into.
 
       if (showNotification) {
         showToast(lang === "he" ? "הנתונים עודכנו בהצלחה" : "Refreshed successfully", "success");
@@ -121,7 +111,6 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
   function toggleAdminViewMode() {
     if (adminViewMode === "admin") {
       setAdminViewMode("user");
-      if (activeTab === "admin_db") setActiveTab("library");
       showToast(lang === "he" ? "עברת לתצוגת משתמשת רגילה" : "Switched to regular user view", "info");
     } else {
       setAdminViewMode("admin");
@@ -301,12 +290,6 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
     }
   }
 
-  function getUserEmailByUid(uid) {
-    if (!adminDbData || !adminDbData.users) return uid;
-    const u = adminDbData.users.find(user => user.uid === uid);
-    return u ? u.email : uid;
-  }
-
   return (
     <div className="library-container">
       {/* Confirm dialog (replaces window.confirm — browsers silently swallow
@@ -419,14 +402,6 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
         >
           {t.myJournal} ({notes.length})
         </button>
-        {showAdminControls && (
-          <button 
-            onClick={() => setActiveTab("admin_db")} 
-            className={`tab-btn ${activeTab === "admin_db" ? "active" : ""}`}
-          >
-            🗄️ {t.adminDb}
-          </button>
-        )}
       </div>
 
       {/* Device Modal */}
@@ -1112,116 +1087,7 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
             </div>
           )}
         </section>
-      ) : (
-        /* ADMIN DATABASE VIEWER TAB */
-        <section className="section library-section">
-          <div className="section-header">
-            <h2>{t.adminDbTitle}</h2>
-            <p className="section-desc">{t.adminDbDesc}</p>
-          </div>
-
-          {!adminDbData ? (
-            <div className="loading-spinner">... ⏳</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
-              <div className="add-book-form">
-                <h3 style={{ fontFamily: 'var(--font-serif)', marginBottom: '1rem', color: 'var(--primary-slate)' }}>{t.registeredUsers} ({adminDbData.users.length})</h3>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: lang === 'he' ? 'right' : 'left' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
-                      <th style={{ padding: '0.65rem' }}>{t.email}</th>
-                      <th style={{ padding: '0.65rem' }}>{t.userUid}</th>
-                      <th style={{ padding: '0.65rem' }}>{t.role}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {adminDbData.users.map(u => (
-                      <tr key={u.uid} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                        <td style={{ padding: '0.65rem', fontWeight: '600' }}>{u.email}</td>
-                        <td style={{ padding: '0.65rem', fontFamily: 'monospace' }}>{u.uid}</td>
-                        <td style={{ padding: '0.65rem' }}>
-                          <span className={`badge ${u.role === 'admin' ? 'badge-admin' : ''}`}>
-                            {u.role === 'admin' ? t.adminRole : '👤 Reader'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="add-book-form">
-                <h3 style={{ fontFamily: 'var(--font-serif)', marginBottom: '0.4rem', color: 'var(--primary-slate)' }}>
-                  {lang === "he" ? `סימניות מקושרות (${Object.keys(adminDbData.devices).length})` : `Linked bookmarks (${Object.keys(adminDbData.devices).length})`}
-                </h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
-                  {lang === "he"
-                    ? "\"תג ממתין לשיוך\" מראה שהסימנייה סרקה תג NFC לא-מקושר בזמן האחרון — זה מה שמאשר בפועל שהסריקה הגיעה לשרת, גם אם פספסת את הודעת הטוסט בדפדפן."
-                    : "\"Pending tag\" shows the bookmark scanned an unlinked NFC tag recently — this confirms the scan reached the server even if you missed the toast in the browser."}
-                </p>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: lang === 'he' ? 'right' : 'left' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
-                      <th style={{ padding: '0.65rem' }}>Device ID</th>
-                      <th style={{ padding: '0.65rem' }}>{lang === "he" ? "בעלים" : "Owner"}</th>
-                      <th style={{ padding: '0.65rem' }}>{lang === "he" ? "תג ממתין לשיוך" : "Pending tag"}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(adminDbData.devices).map(([deviceId, info]) => {
-                      // A pending tag that's already been linked since (it's in
-                      // nfcTags now) is stale -- the "linked" table below is the
-                      // source of truth for it, don't also show it as waiting.
-                      const stillPending = info.lastUnlinkedTag &&
-                        !adminDbData.nfcTags.some(t => t.tagUid === info.lastUnlinkedTag.tagUid);
-                      return (
-                        <tr key={deviceId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                          <td style={{ padding: '0.65rem', fontFamily: 'monospace' }}>{deviceId}</td>
-                          <td style={{ padding: '0.65rem' }}>{getUserEmailByUid(info.uid)}</td>
-                          <td style={{ padding: '0.65rem' }}>
-                            {stillPending
-                              ? `${info.lastUnlinkedTag.tagUid} (${info.lastUnlinkedTag.scannedAt && typeof info.lastUnlinkedTag.scannedAt.toDate === 'function' ? info.lastUnlinkedTag.scannedAt.toDate().toLocaleTimeString() : "—"})`
-                              : "—"}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="add-book-form">
-                <h3 style={{ fontFamily: 'var(--font-serif)', marginBottom: '0.75rem', color: 'var(--primary-slate)' }}>
-                  {lang === "he" ? `תגי NFC מקושרים (${adminDbData.nfcTags.length})` : `Linked NFC tags (${adminDbData.nfcTags.length})`}
-                </h3>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: lang === 'he' ? 'right' : 'left' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
-                      <th style={{ padding: '0.65rem' }}>Tag UID</th>
-                      <th style={{ padding: '0.65rem' }}>{lang === "he" ? "ספר" : "Book"}</th>
-                      <th style={{ padding: '0.65rem' }}>{lang === "he" ? "קושר בתאריך" : "Linked at"}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {adminDbData.nfcTags.length === 0 ? (
-                      <tr><td colSpan={3} style={{ padding: '0.65rem', color: 'var(--text-secondary)' }}>{lang === "he" ? "עדיין אין תגים מקושרים" : "No tags linked yet"}</td></tr>
-                    ) : adminDbData.nfcTags.map(tag => {
-                      const bookTitle = (adminDbData.catalog.find(b => b.bookId === tag.bookId) || {}).title || tag.bookId;
-                      return (
-                        <tr key={tag.tagUid} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                          <td style={{ padding: '0.65rem', fontFamily: 'monospace' }}>{tag.tagUid}</td>
-                          <td style={{ padding: '0.65rem', fontWeight: '600' }}>{bookTitle}</td>
-                          <td style={{ padding: '0.65rem' }}>{tag.linkedAt && typeof tag.linkedAt.toDate === 'function' ? tag.linkedAt.toDate().toLocaleString() : "—"}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </section>
-      )}
+      ) : null}
     </div>
   );
 }
