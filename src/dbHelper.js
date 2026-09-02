@@ -281,6 +281,19 @@ export async function getUserDevices(userId) {
   return snap.docs.map(d => d.id);
 }
 
+// No Bluetooth involved in NFC-tag linking anymore -- the bookmark just
+// always reports every scan to the server (see /api/bookmark/scan), and
+// when the tag isn't linked to a book yet, the server stashes it on the
+// device's own doc. The Reader page polls this (see linkNfcTagViaDevice in
+// Reader.jsx) instead of waiting for a BLE notification.
+export async function getPendingNfcTag(deviceId) {
+  const snap = await getDoc(doc(db, "devices", deviceId));
+  if (!snap.exists()) return null;
+  const pending = snap.data().lastUnlinkedTag;
+  if (!pending || !pending.tagUid) return null;
+  return { tagUid: pending.tagUid, scannedAt: toMillis(pending.scannedAt) };
+}
+
 // ==========================================
 // ADMIN — raw database inspection
 // ==========================================

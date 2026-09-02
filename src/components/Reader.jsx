@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
-import { getUserBooks, getCatalog, getBookPages, updateBookProgress, getUserNotes, addNote, deleteNote, linkNfcTag } from "../dbHelper";
+import { getUserBooks, getCatalog, getBookPages, updateBookProgress, getUserNotes, addNote, deleteNote, linkNfcTag, getUserDevices, getPendingNfcTag } from "../dbHelper";
 import { translations } from "../translations";
 import NoteMenu from "./NoteMenu";
-import { BookmarkBLE, isWebBluetoothSupported } from "../bookmarkBle";
 
 // Subtle marker highlight style
 const HIGHLIGHT_STYLE = {
@@ -94,27 +93,43 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
 
   // Link the physical NFC sticker on this book's cover to this catalog
   // bookId, so the bookmark hardware can recognize it on its own from then
-  // on (see bookmarkBle.js — this is the only place Bluetooth is used from
-  // the Reader; day-to-day page sync doesn't need it).
-  const [ble] = useState(() => new BookmarkBLE());
+  // on. No Bluetooth involved -- the bookmark always reports every scan to
+  // the server over WiFi, and when a tag isn't linked yet, the server
+  // stashes it on the device's own doc (see /api/bookmark/scan). We just
+  // poll that doc for a scan newer than when we started waiting, same way
+  // any other reader would: put the bookmark near an unlinked sticker.
   const [nfcLinking, setNfcLinking] = useState(false);
-
-  useEffect(() => () => ble.disconnect(), [ble]);
 
   async function handleLinkNfcTag() {
     setNfcLinking(true);
+    const startedAt = Date.now();
     try {
-      if (!ble.isConnected) {
-        await ble.connect();
+      const deviceIds = await getUserDevices(currentUser.uid);
+      if (deviceIds.length === 0) {
+        throw new Error(lang === "he"
+          ? "אין לך סימנייה מקושרת לחשבון. קשרי אותה קודם מעמוד הספרייה"
+          : "No bookmark linked to your account yet — link one from the Library page first");
       }
-      showToast(lang === "he" ? "קרבי את הספר לחיישן NFC של הסימנייה..." : "Hold the book near the bookmark's NFC reader...", "info");
-      const tagUid = await ble.startNfcLinking();
+
+      showToast(lang === "he" ? "קרבי את התג לחיישן NFC של הסימנייה..." : "Hold the tag near the bookmark's NFC reader...", "info");
+
+      const timeoutAt = startedAt + 30000;
+      let tagUid = null;
+      while (Date.now() < timeoutAt) {
+        const results = await Promise.all(deviceIds.map(id => getPendingNfcTag(id)));
+        const fresh = results.find(r => r && r.scannedAt >= startedAt);
+        if (fresh) { tagUid = fresh.tagUid; break; }
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+
+      if (!tagUid) {
+        throw new Error(lang === "he" ? "לא זוהה תג NFC תוך 30 שניות. נסי שוב" : "No NFC tag detected within 30 seconds — try again");
+      }
+
       await linkNfcTag(currentUser.uid, tagUid, bookId);
       showToast(lang === "he" ? "התג קושר לספר הזה בהצלחה!" : "Tag linked to this book!", "success");
     } catch (err) {
-      if (err.name !== "NotFoundError") {
-        showToast(err.message || "Error linking NFC tag", "error");
-      }
+      showToast(err.message || "Error linking NFC tag", "error");
     } finally {
       setNfcLinking(false);
     }
@@ -323,18 +338,16 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
             <button onClick={() => setTheme("dark")} className={`theme-dot dark ${theme === "dark" ? "active" : ""}`} title="לילה כהה" />
           </div>
 
-          {isWebBluetoothSupported() && (
-            <div className="control-group">
-              <button
-                onClick={handleLinkNfcTag}
-                disabled={nfcLinking}
-                className="btn-text-control"
-                title={lang === "he" ? "קשר תג NFC פיזי לספר הזה, כדי שהסימנייה תזהה אותו לבד" : "Link a physical NFC tag to this book"}
-              >
-                🔖 {nfcLinking ? "..." : (lang === "he" ? "קשר תג NFC" : "Link NFC tag")}
-              </button>
-            </div>
-          )}
+          <div className="control-group">
+            <button
+              onClick={handleLinkNfcTag}
+              disabled={nfcLinking}
+              className="btn-text-control"
+              title={lang === "he" ? "קשר תג NFC פיזי לספר הזה, כדי שהסימנייה תזהה אותו לבד" : "Link a physical NFC tag to this book"}
+            >
+              🔖 {nfcLinking ? "..." : (lang === "he" ? "קשר תג NFC" : "Link NFC tag")}
+            </button>
+          </div>
         </div>
       </div>
 

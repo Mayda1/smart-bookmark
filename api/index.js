@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { initializeApp, getApps, getApp, cert } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 const app = express();
 
@@ -120,6 +120,15 @@ app.post('/api/bookmark/scan', async (req, res) => {
       return res.status(404).json({ error: `המכשיר ${cleanDeviceId} עדיין לא קושר לשום חשבון משתמש באתר` });
     }
     if (!tagSnap.exists) {
+      // No Bluetooth involved anymore -- the device just always reports every
+      // scan here. When the tag isn't linked yet, remember it on the device's
+      // own doc (owner-readable per firestore.rules) so the Reader page can
+      // pick this up by itself (it already knows its own linked device) and
+      // finish the tagUid -> bookId link, without any special "linking mode"
+      // on the device side.
+      await db.collection('devices').doc(cleanDeviceId).set({
+        lastUnlinkedTag: { tagUid: cleanTagUid, scannedAt: FieldValue.serverTimestamp() }
+      }, { merge: true });
       return res.status(404).json({ error: "התג הזה עדיין לא קושר לספר" });
     }
 
