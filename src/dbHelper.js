@@ -291,12 +291,13 @@ export async function getAdminDatabase(userEmail) {
     throw new Error("הרשאת מנהלת בלבד");
   }
 
+  const tag = (label, p) => p.catch(e => { e.message = `[admin:${label}] ${e.message}`; throw e; });
   const [usersSnap, catalogSnap, librarySnap, notesSnap, devicesSnap] = await Promise.all([
-    getDocs(collection(db, "users")),
-    getDocs(collection(db, "catalog")),
-    getDocs(collectionGroup(db, "library")),
-    getDocs(collectionGroup(db, "notes")),
-    getDocs(collection(db, "devices"))
+    tag("users", getDocs(collection(db, "users"))),
+    tag("catalog", getDocs(collection(db, "catalog"))),
+    tag("library(group)", getDocs(collectionGroup(db, "library"))),
+    tag("notes(group)", getDocs(collectionGroup(db, "notes"))),
+    tag("devices", getDocs(collection(db, "devices")))
   ]);
 
   const users = usersSnap.docs.map(d => ({

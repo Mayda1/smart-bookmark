@@ -91,11 +91,12 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
   async function loadData(showNotification = false) {
     try {
       if (showNotification) setLoading(true);
+      const tag = (label, p) => p.catch(e => { e.message = `[${label}] ${e.message}`; throw e; });
       const [booksData, catalogData, devicesData, notesData] = await Promise.all([
-        getUserBooks(currentUser.uid),
-        getCatalog(),
-        getUserDevices(currentUser.uid),
-        getUserNotes(currentUser.uid)
+        tag("getUserBooks", getUserBooks(currentUser.uid)),
+        tag("getCatalog", getCatalog()),
+        tag("getUserDevices", getUserDevices(currentUser.uid)),
+        tag("getUserNotes", getUserNotes(currentUser.uid))
       ]);
       setBooks(booksData);
       setCatalog(catalogData);
