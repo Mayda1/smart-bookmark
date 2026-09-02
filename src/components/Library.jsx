@@ -1149,6 +1149,75 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
                   </tbody>
                 </table>
               </div>
+
+              <div className="add-book-form">
+                <h3 style={{ fontFamily: 'var(--font-serif)', marginBottom: '0.4rem', color: 'var(--primary-slate)' }}>
+                  {lang === "he" ? `סימניות מקושרות (${Object.keys(adminDbData.devices).length})` : `Linked bookmarks (${Object.keys(adminDbData.devices).length})`}
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+                  {lang === "he"
+                    ? "\"תג ממתין לשיוך\" מראה שהסימנייה סרקה תג NFC לא-מקושר בזמן האחרון — זה מה שמאשר בפועל שהסריקה הגיעה לשרת, גם אם פספסת את הודעת הטוסט בדפדפן."
+                    : "\"Pending tag\" shows the bookmark scanned an unlinked NFC tag recently — this confirms the scan reached the server even if you missed the toast in the browser."}
+                </p>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: lang === 'he' ? 'right' : 'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
+                      <th style={{ padding: '0.65rem' }}>Device ID</th>
+                      <th style={{ padding: '0.65rem' }}>{lang === "he" ? "בעלים" : "Owner"}</th>
+                      <th style={{ padding: '0.65rem' }}>{lang === "he" ? "תג ממתין לשיוך" : "Pending tag"}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(adminDbData.devices).map(([deviceId, info]) => {
+                      // A pending tag that's already been linked since (it's in
+                      // nfcTags now) is stale -- the "linked" table below is the
+                      // source of truth for it, don't also show it as waiting.
+                      const stillPending = info.lastUnlinkedTag &&
+                        !adminDbData.nfcTags.some(t => t.tagUid === info.lastUnlinkedTag.tagUid);
+                      return (
+                        <tr key={deviceId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                          <td style={{ padding: '0.65rem', fontFamily: 'monospace' }}>{deviceId}</td>
+                          <td style={{ padding: '0.65rem' }}>{getUserEmailByUid(info.uid)}</td>
+                          <td style={{ padding: '0.65rem' }}>
+                            {stillPending
+                              ? `${info.lastUnlinkedTag.tagUid} (${info.lastUnlinkedTag.scannedAt && typeof info.lastUnlinkedTag.scannedAt.toDate === 'function' ? info.lastUnlinkedTag.scannedAt.toDate().toLocaleTimeString() : "—"})`
+                              : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="add-book-form">
+                <h3 style={{ fontFamily: 'var(--font-serif)', marginBottom: '0.75rem', color: 'var(--primary-slate)' }}>
+                  {lang === "he" ? `תגי NFC מקושרים (${adminDbData.nfcTags.length})` : `Linked NFC tags (${adminDbData.nfcTags.length})`}
+                </h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: lang === 'he' ? 'right' : 'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
+                      <th style={{ padding: '0.65rem' }}>Tag UID</th>
+                      <th style={{ padding: '0.65rem' }}>{lang === "he" ? "ספר" : "Book"}</th>
+                      <th style={{ padding: '0.65rem' }}>{lang === "he" ? "קושר בתאריך" : "Linked at"}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {adminDbData.nfcTags.length === 0 ? (
+                      <tr><td colSpan={3} style={{ padding: '0.65rem', color: 'var(--text-secondary)' }}>{lang === "he" ? "עדיין אין תגים מקושרים" : "No tags linked yet"}</td></tr>
+                    ) : adminDbData.nfcTags.map(tag => {
+                      const bookTitle = (adminDbData.catalog.find(b => b.bookId === tag.bookId) || {}).title || tag.bookId;
+                      return (
+                        <tr key={tag.tagUid} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                          <td style={{ padding: '0.65rem', fontFamily: 'monospace' }}>{tag.tagUid}</td>
+                          <td style={{ padding: '0.65rem', fontWeight: '600' }}>{bookTitle}</td>
+                          <td style={{ padding: '0.65rem' }}>{tag.linkedAt && typeof tag.linkedAt.toDate === 'function' ? tag.linkedAt.toDate().toLocaleString() : "—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </section>

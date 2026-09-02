@@ -305,12 +305,13 @@ export async function getAdminDatabase(userEmail) {
   }
 
   const tag = (label, p) => p.catch(e => { e.message = `[admin:${label}] ${e.message}`; throw e; });
-  const [usersSnap, catalogSnap, librarySnap, notesSnap, devicesSnap] = await Promise.all([
+  const [usersSnap, catalogSnap, librarySnap, notesSnap, devicesSnap, nfcTagsSnap] = await Promise.all([
     tag("users", getDocs(collection(db, "users"))),
     tag("catalog", getDocs(collection(db, "catalog"))),
     tag("library(group)", getDocs(collectionGroup(db, "library"))),
     tag("notes(group)", getDocs(collectionGroup(db, "notes"))),
-    tag("devices", getDocs(collection(db, "devices")))
+    tag("devices", getDocs(collection(db, "devices"))),
+    tag("nfcTags", getDocs(collection(db, "nfcTags")))
   ]);
 
   const users = usersSnap.docs.map(d => ({
@@ -337,8 +338,14 @@ export async function getAdminDatabase(userEmail) {
 
   const devices = {};
   devicesSnap.docs.forEach(d => {
-    devices[d.id] = d.data().uid;
+    // Keep the full doc (uid + lastUnlinkedTag, when a scan is waiting to be
+    // claimed) rather than just the uid — the admin panel's Devices table
+    // uses this to show a pending NFC-tag scan directly, without needing to
+    // trust a toast that might have been missed.
+    devices[d.id] = { uid: d.data().uid, lastUnlinkedTag: d.data().lastUnlinkedTag || null };
   });
 
-  return { users, catalog, progress, devices, notes };
+  const nfcTags = nfcTagsSnap.docs.map(d => ({ tagUid: d.id, ...d.data() }));
+
+  return { users, catalog, progress, devices, notes, nfcTags };
 }
