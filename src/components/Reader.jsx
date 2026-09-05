@@ -170,14 +170,13 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
           setPages([]);
         }
       } else {
-        // Emergency fallback if bookId is not in API DB
-        setBook({
-          bookId: bookId || "fallback",
-          title: "האדם מחפש משמעות",
-          author: "ויקטור פרנקל",
-          totalPages: 210,
-          currentPage: initialPage || startPage || 1
-        });
+        // Book truly wasn't found in the user's library or the global
+        // catalog (deleted from the catalog, bad/stale bookId, etc.) --
+        // leave book as null so the honest "book not found" state below
+        // renders, instead of a fabricated placeholder that used to show
+        // fake content under this exact title/author.
+        console.error("Book not found in library or catalog:", bookId);
+        setBook(null);
       }
       setNotes(notesData);
     } catch (err) {
