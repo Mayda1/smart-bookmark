@@ -1,6 +1,5 @@
 import {
   collection,
-  collectionGroup,
   doc,
   getDoc,
   getDocs,
@@ -155,16 +154,22 @@ export async function deleteCatalogBook(userEmail, bookId) {
     await batch.commit();
   }
 
-  const librarySnap = await getDocs(query(collectionGroup(db, "library"), where("bookId", "==", bookId)));
-  const libraryDocs = librarySnap.docs;
-  for (let start = 0; start < libraryDocs.length; start += CHUNK) {
-    const batch = writeBatch(db);
-    libraryDocs.slice(start, start + CHUNK).forEach(d => batch.delete(d.ref));
-    await batch.commit();
-  }
-
+  // NOTE: this used to also cascade-delete the book from every user's
+  // personal library via a `collectionGroup(db, "library")` query. That's
+  // the exact same kind of client-side collectionGroup read that was
+  // already found to be unreliable and removed from getAdminDatabase() (see
+  // the comment a few lines below) -- Firestore collection-group queries
+  // need an explicit collection-group-scoped index for the filtered field,
+  // which was never created here, so the query silently failed/hung instead
+  // of completing, and the whole "מחיקה מהקטלוג" button looked like it
+  // "did nothing" (the catalog doc itself was never reached to be deleted).
+  // Dropped it rather than debug that index/rules edge case further, same
+  // call as before: any user whose library still points at this bookId
+  // after it's gone already gets a graceful, self-service fallback --
+  // getUserBooks() marks it catalogMissing (shows "ספר שהוסר מהקטלוג"), and
+  // removeFromLibrary() lets that user clear it themselves (section 5.10).
   await deleteDoc(doc(db, "catalog", bookId));
-  return { success: true, bookId, removedFromLibraries: libraryDocs.length };
+  return { success: true, bookId };
 }
 
 // Let a user remove a stale/orphaned entry from their own library — mainly a
