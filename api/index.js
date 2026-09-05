@@ -148,7 +148,12 @@ app.post('/api/bookmark/scan', async (req, res) => {
     const catalogData = catalogSnap.exists ? catalogSnap.data() : {};
     const sequenceNumber = libData.currentPage || 1;
 
-    const printedPage = libData.lastPrintedPage != null
+    // A stored lastPrintedPage of 0 is not a real page (printed numbering
+    // starts at 1) -- it's the signature of a stale/bad write from before
+    // /api/update-progress validated this field (fixed separately). Treat
+    // anything below 1 as "not actually set" and recompute it from the
+    // sequence number instead of handing back a number that doesn't exist.
+    const printedPage = (libData.lastPrintedPage != null && libData.lastPrintedPage >= 1)
       ? libData.lastPrintedPage
       : await resolvePrintedPage(db, bookId, sequenceNumber);
 
