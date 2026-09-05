@@ -199,7 +199,17 @@ app.post('/api/update-progress', async (req, res) => {
     const totalPages = catalogSnap.exists ? catalogSnap.data().totalPages : sequenceNumber;
     const page = Math.min(Math.max(1, sequenceNumber), totalPages || sequenceNumber);
 
-    await libraryRef.update({ currentPage: page, lastPrintedPage: printedPage });
+    // lastPrintedPage must describe the SAME page as the clamped `page` we're
+    // about to save -- if the reported printed number was invalid or out of
+    // range (e.g. a bookmark that saved before ever navigating anywhere
+    // sends printedPage 0, which isn't a real page), don't store that
+    // nonsensical value verbatim. Recompute the printed number that actually
+    // matches the clamped page instead, so the two fields never disagree.
+    const resolvedPrintedPage = page === sequenceNumber
+      ? printedPage
+      : await resolvePrintedPage(db, bookId, page);
+
+    await libraryRef.update({ currentPage: page, lastPrintedPage: resolvedPrintedPage });
 
     return res.json({ success: true, userId, message: `העמוד עודכן ל-${page}` });
   } catch (err) {
