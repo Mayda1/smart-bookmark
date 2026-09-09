@@ -66,7 +66,6 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
 
   async function handleLinkNfcTag() {
     setNfcLinking(true);
-    const startedAt = Date.now();
     try {
       const deviceIds = await getUserDevices(currentUser.uid);
       if (deviceIds.length === 0) {
@@ -75,14 +74,28 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
           : "No bookmark linked to your account yet — link one from the Library page first");
       }
 
+      // Baseline: each device's most recent scan *right now*, straight from
+      // Firestore. A later scan only counts once it's strictly newer than
+      // this baseline -- comparing two Firestore-server timestamps against
+      // each other, never against the browser's own Date.now(). Comparing
+      // against the client clock (the previous approach) silently broke
+      // this for good on any device whose clock is skewed even slightly
+      // ahead of real time: every scan's server timestamp would then look
+      // "older" than the moment we started listening, and no scan could
+      // ever be found "fresh" -- indistinguishable from the tag never being
+      // scanned at all.
+      const baseline = await Promise.all(deviceIds.map(id => getPendingNfcTag(id)));
+      const baselineMillis = {};
+      deviceIds.forEach((id, i) => { baselineMillis[id] = baseline[i]?.scannedAt || 0; });
+
       showToast(lang === "he" ? "קרבי את התג לחיישן NFC של הסימנייה..." : "Hold the tag near the bookmark's NFC reader...", "info");
 
-      const timeoutAt = startedAt + 30000;
+      const timeoutAt = Date.now() + 30000;
       let tagUid = null;
       while (Date.now() < timeoutAt) {
         const results = await Promise.all(deviceIds.map(id => getPendingNfcTag(id)));
-        const fresh = results.find(r => r && r.scannedAt >= startedAt);
-        if (fresh) { tagUid = fresh.tagUid; break; }
+        const freshIndex = results.findIndex((r, i) => r && r.scannedAt > baselineMillis[deviceIds[i]]);
+        if (freshIndex !== -1) { tagUid = results[freshIndex].tagUid; break; }
         await new Promise(resolve => setTimeout(resolve, 1500));
       }
 
