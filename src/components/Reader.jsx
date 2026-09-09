@@ -231,64 +231,69 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
 
         <span className="ereader-title" title={book.title}>{book.title}</span>
 
-        <div className="ereader-toolbar-actions" ref={settingsRef}>
+        <div className="ereader-toolbar-right">
+          {/* Book <-> physical NFC tag linking — kept as its own visible
+              toolbar button (not tucked inside settings) since it's a
+              primary action, not a display preference. */}
           <button
-            onClick={() => setSettingsOpen(prev => !prev)}
+            onClick={handleLinkNfcTag}
+            disabled={nfcLinking}
             className="ereader-icon-btn"
-            title={t.readerToolbar}
-            aria-label={t.readerToolbar}
+            title={lang === "he" ? "קשר תג NFC פיזי לספר הזה, כדי שהסימנייה תזהה אותו לבד" : "Link a physical NFC tag to this book"}
+            aria-label={lang === "he" ? "קשר תג NFC" : "Link NFC tag"}
           >
-            Aa
+            🔖<span className="ereader-icon-btn-label"> {nfcLinking ? "..." : (lang === "he" ? "קשר תג" : "Link tag")}</span>
           </button>
 
-          {settingsOpen && (
-            <div className="ereader-settings-panel">
-              <div className="ereader-settings-row">
-                <span className="ereader-settings-label">{t.fontScale}</span>
-                <div className="control-group">
-                  <button onClick={() => setFontSize(prev => Math.max(14, prev - 2))} className="btn-icon-control" title="הקטן גופן">A-</button>
-                  <button onClick={() => setFontSize(prev => Math.min(28, prev + 2))} className="btn-icon-control" title="הגדל גופן">A+</button>
+          <div className="ereader-toolbar-actions" ref={settingsRef}>
+            <button
+              onClick={() => setSettingsOpen(prev => !prev)}
+              className="ereader-icon-btn"
+              title={t.readerToolbar}
+              aria-label={t.readerToolbar}
+            >
+              Aa
+            </button>
+
+            {settingsOpen && (
+              <div className="ereader-settings-panel">
+                <div className="ereader-settings-row">
+                  <span className="ereader-settings-label">{t.fontScale}</span>
+                  <div className="control-group">
+                    <button onClick={() => setFontSize(prev => Math.max(14, prev - 2))} className="btn-icon-control" title="הקטן גופן">A-</button>
+                    <button onClick={() => setFontSize(prev => Math.min(28, prev + 2))} className="btn-icon-control" title="הגדל גופן">A+</button>
+                  </div>
+                </div>
+
+                <div className="ereader-settings-row">
+                  <span className="ereader-settings-label">{t.fontType}</span>
+                  <div className="control-group">
+                    <button
+                      onClick={() => setFontFamily("serif")}
+                      className={`btn-text-control ${fontFamily === "serif" ? "active" : ""}`}
+                    >
+                      Serif
+                    </button>
+                    <button
+                      onClick={() => setFontFamily("sans")}
+                      className={`btn-text-control ${fontFamily === "sans" ? "active" : ""}`}
+                    >
+                      Sans
+                    </button>
+                  </div>
+                </div>
+
+                <div className="ereader-settings-row">
+                  <span className="ereader-settings-label">{t.theme}</span>
+                  <div className="control-group themes">
+                    <button onClick={() => setTheme("cream")} className={`theme-dot cream ${theme === "cream" ? "active" : ""}`} title="נייר קרם" />
+                    <button onClick={() => setTheme("white")} className={`theme-dot white ${theme === "white" ? "active" : ""}`} title="לבן" />
+                    <button onClick={() => setTheme("dark")} className={`theme-dot dark ${theme === "dark" ? "active" : ""}`} title="לילה כהה" />
+                  </div>
                 </div>
               </div>
-
-              <div className="ereader-settings-row">
-                <span className="ereader-settings-label">{t.fontType}</span>
-                <div className="control-group">
-                  <button
-                    onClick={() => setFontFamily("serif")}
-                    className={`btn-text-control ${fontFamily === "serif" ? "active" : ""}`}
-                  >
-                    Serif
-                  </button>
-                  <button
-                    onClick={() => setFontFamily("sans")}
-                    className={`btn-text-control ${fontFamily === "sans" ? "active" : ""}`}
-                  >
-                    Sans
-                  </button>
-                </div>
-              </div>
-
-              <div className="ereader-settings-row">
-                <span className="ereader-settings-label">{t.theme}</span>
-                <div className="control-group themes">
-                  <button onClick={() => setTheme("cream")} className={`theme-dot cream ${theme === "cream" ? "active" : ""}`} title="נייר קרם" />
-                  <button onClick={() => setTheme("white")} className={`theme-dot white ${theme === "white" ? "active" : ""}`} title="לבן" />
-                  <button onClick={() => setTheme("dark")} className={`theme-dot dark ${theme === "dark" ? "active" : ""}`} title="לילה כהה" />
-                </div>
-              </div>
-
-              <button
-                onClick={handleLinkNfcTag}
-                disabled={nfcLinking}
-                className="btn-text-control"
-                style={{ width: '100%', marginTop: '0.35rem' }}
-                title={lang === "he" ? "קשר תג NFC פיזי לספר הזה, כדי שהסימנייה תזהה אותו לבד" : "Link a physical NFC tag to this book"}
-              >
-                🔖 {nfcLinking ? "..." : (lang === "he" ? "קשר תג NFC" : "Link NFC tag")}
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

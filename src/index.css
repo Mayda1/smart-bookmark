@@ -746,6 +746,13 @@ html[dir="ltr"] .form-group {
     text-overflow: ellipsis;
 }
 
+.ereader-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+}
+
 .ereader-toolbar-actions {
     position: relative;
     flex-shrink: 0;
@@ -760,11 +767,17 @@ html[dir="ltr"] .form-group {
     color: var(--primary-slate);
     padding: 0.4rem 0.75rem;
     border-radius: 8px;
+    white-space: nowrap;
     transition: background 0.15s ease;
 }
 
-.ereader-icon-btn:hover {
+.ereader-icon-btn:hover:not(:disabled) {
     background: var(--surface-hover);
+}
+
+.ereader-icon-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
 }
 
 .ereader-settings-panel {
@@ -873,18 +886,38 @@ html[dir="ltr"] .form-group {
     cursor: default;
 }
 
+/* The chevron itself is a small, clearly visible circular button centered
+   on the edge zone -- not just a faint hover hint, so page navigation
+   reads unmistakably as a control even before the user's mouse gets near
+   it (and on touch devices, which never see a :hover state at all). */
 .ereader-chevron {
-    font-size: 1.6rem;
-    opacity: 0.15;
-    transition: opacity 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 1.4rem;
+    line-height: 1;
+    /* Inherit the current reading theme's text color (set inline on
+       .ereader-page per cream/white/dark) so the chevron stays legible
+       against every background instead of a color hardcoded for one theme. */
+    color: inherit;
+    background: rgba(140, 109, 88, 0.14);
+    border: 1px solid rgba(140, 109, 88, 0.22);
+    opacity: 0.8;
+    transition: opacity 0.15s ease, background 0.15s ease, transform 0.15s ease;
 }
 
 .ereader-tap-zone:hover:not(:disabled) .ereader-chevron {
-    opacity: 0.45;
+    opacity: 1;
+    background: rgba(140, 109, 88, 0.2);
+    transform: scale(1.08);
 }
 
 .ereader-tap-zone:disabled .ereader-chevron {
     opacity: 0;
+    pointer-events: none;
 }
 
 @keyframes ereaderFadeIn {
@@ -1033,12 +1066,24 @@ html[dir="ltr"] .form-group {
     /* E-Reader */
     .ereader-toolbar {
         height: 46px;
-        padding: 0 0.6rem;
-        gap: 0.4rem;
+        padding: 0 0.5rem;
+        gap: 0.3rem;
     }
 
     .ereader-title {
         font-size: 0.8rem;
+    }
+
+    .ereader-icon-btn {
+        padding: 0.4rem 0.55rem;
+        font-size: 0.8rem;
+    }
+
+    /* Keep just the icon on the NFC-link button at narrow widths -- its
+       label text is set via a data attribute so it can be hidden here
+       without touching the JSX per breakpoint. */
+    .ereader-icon-btn .ereader-icon-btn-label {
+        display: none;
     }
 
     .ereader-content-column {
