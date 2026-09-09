@@ -1,51 +1,11 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
-import { getUserBooks, getCatalog, getBookPages, updateBookProgress, getUserNotes, addNote, deleteNote, linkNfcTag, getUserDevices, getPendingNfcTag } from "../dbHelper";
+import { getUserBooks, getCatalog, getBookPages, updateBookProgress, linkNfcTag, getUserDevices, getPendingNfcTag } from "../dbHelper";
 import { translations } from "../translations";
-import NoteMenu from "./NoteMenu";
 
-// Subtle marker highlight style
-const HIGHLIGHT_STYLE = {
-  backgroundColor: 'rgba(232, 210, 160, 0.35)',
-  borderRadius: '2px',
-  padding: '1px 0',
-  transition: 'background-color 0.3s ease'
-};
-
-// Takes a text string and array of saved quotes for this page,
-// returns React elements with matching fragments wrapped in <mark>
-function highlightText(text, savedQuotes) {
-  if (!savedQuotes || savedQuotes.length === 0 || !text) return text;
-
-  // Collect all quote strings for this page (non-empty)
-  const quoteStrings = savedQuotes
-    .map(n => n.quote)
-    .filter(q => q && q.trim().length > 3);
-
-  if (quoteStrings.length === 0) return text;
-
-  // Escape regex special chars and build a combined pattern
-  const escaped = quoteStrings.map(q =>
-    q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  );
-  // Sort longest first so longer matches take priority
-  escaped.sort((a, b) => b.length - a.length);
-
-  const pattern = new RegExp(`(${escaped.join('|')})`, 'g');
-  const parts = text.split(pattern);
-
-  if (parts.length === 1) return text; // No matches
-
-  return parts.map((part, i) => {
-    const isMatch = quoteStrings.some(q => part === q);
-    if (isMatch) {
-      return <mark key={i} style={HIGHLIGHT_STYLE}>{part}</mark>;
-    }
-    return part;
-  });
-}
-
-// Reader component - Single Back button at top header only
+// Reader component — full-screen, minimal "e-reader" layout (Kindle-style):
+// a slim top toolbar (back button, title, settings) and the book filling
+// the rest of the viewport, with edge tap-zones for page navigation.
 export default function Reader({ bookId, initialPage, startPage, onBack, onClose, showToast }) {
   const { currentUser } = useAuth();
   const [book, setBook] = useState(null);
@@ -53,6 +13,32 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
   // { type: "text", text } or { type: "image", image, alt }
   const [pages, setPages] = useState([]);
   const [currentPage, setCurrentPage] = useState(initialPage || startPage || 1);
+  const [loading, setLoading] = useState(true);
+  const [isTurning, setIsTurning] = useState(false);
+
+  // Reader Settings
+  const [fontSize, setFontSize] = useState(18);
+  const [fontFamily, setFontFamily] = useState("serif");
+  const [theme, setTheme] = useState("cream");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef(null);
+
+  // Language
+  const lang = localStorage.getItem("app_lang") || "he";
+  const t = translations[lang];
+
+  // Close the settings panel on an outside click
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (settingsRef.current && !settingsRef.current.contains(e.target)) {
+        setSettingsOpen(false);
+      }
+    }
+    if (settingsOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [settingsOpen]);
 
   // Single navigation back handler (Triggers top header back button)
   function handleBackNav() {
@@ -61,35 +47,13 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
         window.getSelection().removeAllRanges();
       }
     } catch (e) {}
-    
+
     if (typeof onBack === 'function') {
       onBack();
     } else if (typeof onClose === 'function') {
       onClose();
     }
   }
-
-  const [loading, setLoading] = useState(true);
-  const [isTurning, setIsTurning] = useState(false);
-  
-  // Selected Text & Flow state
-  const [selectedText, setSelectedText] = useState("");
-  const [showBottomForm, setShowBottomForm] = useState(false);
-  
-  // Notes state for this book
-  const [notes, setNotes] = useState([]);
-  const [newQuote, setNewQuote] = useState("");
-  const [newNoteText, setNewNoteText] = useState("");
-  const [noteSaving, setNoteSaving] = useState(false);
-
-  // Reader Settings
-  const [fontSize, setFontSize] = useState(18);
-  const [fontFamily, setFontFamily] = useState("serif");
-  const [theme, setTheme] = useState("cream");
-
-  // Language
-  const lang = localStorage.getItem("app_lang") || "he";
-  const t = translations[lang];
 
   // Link the physical NFC sticker on this book's cover to this catalog
   // bookId, so the bookmark hardware can recognize it on its own from then
@@ -135,17 +99,14 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
     }
   }
 
-  // Load book details and quotes
+  // Load book details
   async function loadData() {
     try {
       setLoading(true);
-      const [booksData, notesData] = await Promise.all([
-        getUserBooks(currentUser.uid),
-        getUserNotes(currentUser.uid, bookId)
-      ]);
-      
+      const booksData = await getUserBooks(currentUser.uid);
+
       let found = Array.isArray(booksData) ? booksData.find(b => b.bookId === bookId) : null;
-      
+
       // If book is not in user's personal library progress list yet, fetch from global catalog!
       if (!found) {
         try {
@@ -173,12 +134,10 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
         // Book truly wasn't found in the user's library or the global
         // catalog (deleted from the catalog, bad/stale bookId, etc.) --
         // leave book as null so the honest "book not found" state below
-        // renders, instead of a fabricated placeholder that used to show
-        // fake content under this exact title/author.
+        // renders, instead of a fabricated placeholder.
         console.error("Book not found in library or catalog:", bookId);
         setBook(null);
       }
-      setNotes(notesData);
     } catch (err) {
       showToast("שגיאה בטעינת הספר", "error");
     } finally {
@@ -190,33 +149,12 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
     loadData();
   }, [bookId, currentUser]);
 
-  // Step 1: Capture user text selection on the page
-  function handleTextSelection() {
-    const selection = window.getSelection();
-    if (selection) {
-      const text = selection.toString().trim();
-      if (text.length > 2) {
-        setSelectedText(text);
-      } else {
-        if (!showBottomForm) setSelectedText("");
-      }
-    }
-  }
-
-  // Step 2: Clicking the SIDE button opens the BOTTOM form pre-filled with selected text
-  function handleSideButtonClick() {
-    setNewQuote(selectedText);
-    setShowBottomForm(true);
-  }
-
   async function handlePageChange(newPage) {
     if (!book) return;
     if (newPage < 1 || newPage > book.totalPages) return;
 
     setIsTurning(true);
     setCurrentPage(newPage);
-    setSelectedText("");
-    setShowBottomForm(false);
 
     try {
       // Pass along the printed page number for this page (when the book has
@@ -232,47 +170,21 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
     }
   }
 
-  // Step 3: Submitting the bottom form
-  async function handleAddHighlightNote(e) {
-    if (e) e.preventDefault();
-    if (!newQuote.trim() && !newNoteText.trim()) return;
-
-    try {
-      setNoteSaving(true);
-      const added = await addNote(currentUser.uid, {
-        bookId,
-        bookTitle: book.title,
-        page: currentPage,
-        quote: newQuote,
-        note: newNoteText
-      });
-      setNotes(prev => [added, ...prev]);
-      setNewQuote("");
-      setNewNoteText("");
-      setSelectedText("");
-      setShowBottomForm(false);
-      
-      if (window.getSelection) {
-        window.getSelection().removeAllRanges();
+  // Keyboard arrow-key page turning — spatial, not semantic (left key
+  // always moves toward the left-hand side of the screen), matching the
+  // edge tap-zones below.
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (!book || settingsOpen) return;
+      if (e.key === "ArrowLeft") {
+        handlePageChange(lang === "he" ? currentPage + 1 : currentPage - 1);
+      } else if (e.key === "ArrowRight") {
+        handlePageChange(lang === "he" ? currentPage - 1 : currentPage + 1);
       }
-
-      showToast(lang === "he" ? "הציטוט נשמר במחברת שלך!" : "Highlight saved to your journal!", "success");
-    } catch (err) {
-      showToast(err.message || "Error saving note", "error");
-    } finally {
-      setNoteSaving(false);
     }
-  }
-
-  async function handleDeleteNote(noteId) {
-    try {
-      await deleteNote(currentUser.uid, noteId);
-      setNotes(prev => prev.filter(n => n.noteId !== noteId));
-      showToast(lang === "he" ? "ההערה נמחקה" : "Note deleted", "info");
-    } catch (err) {
-      showToast("Error deleting note", "error");
-    }
-  }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [book, currentPage, lang, settingsOpen, pages]);
 
   if (loading) {
     return <div className="loading-spinner">טוען קורא... ⏳</div>;
@@ -288,469 +200,228 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
   }
 
   const themeStyles = {
-    cream: { bg: "#f9f6f0", text: "#1f2937", border: "#dcd1be" },
-    white: { bg: "#ffffff", text: "#000000", border: "#e5e7eb" },
-    dark:  { bg: "#18181b", text: "#e4e4e7", border: "#27272a" }
+    cream: { bg: "#f9f6f0", text: "#1f2937" },
+    white: { bg: "#ffffff", text: "#000000" },
+    dark:  { bg: "#18181b", text: "#e4e4e7" }
   };
 
   const currentTheme = themeStyles[theme];
 
   // True when the current page has no selectable text (image-type page, or a
-  // legacy whole-book image scan) — text selection/highlighting doesn't apply there.
+  // legacy whole-book image scan).
   const isImagePage = pages.length > 0
     ? pages[currentPage - 1]?.type === "image"
     : Boolean(book.pageImagePattern);
 
+  // Which physical side of the screen "previous"/"next" live on. Hebrew
+  // reads right-to-left, so the next page is toward the left of the screen;
+  // English is the mirror image.
+  const prevSide = lang === "he" ? "right" : "left";
+  const nextSide = lang === "he" ? "left" : "right";
+  const canGoPrev = currentPage > 1;
+  const canGoNext = currentPage < book.totalPages;
+
   return (
-    <div className="reader-container" style={{ position: 'relative' }}>
-      {/* Upper Navigation Bar (THE ONLY Back to Library button on the entire page!) */}
-      <div className="reader-header">
-        <button onClick={handleBackNav} className="btn btn-secondary btn-small" type="button">
+    <div className="ereader-container">
+      {/* Slim top toolbar — the only chrome on screen besides the book itself */}
+      <div className="ereader-toolbar">
+        <button onClick={handleBackNav} className="ereader-back-btn" type="button">
           {t.backToLibrary}
         </button>
 
-        <div className="reader-book-details">
-          <h2 id="reader-book-title">{book.title}</h2>
-          <p id="reader-book-author">{book.author}</p>
-        </div>
+        <span className="ereader-title" title={book.title}>{book.title}</span>
 
-        {/* Accessibility & Ergonomic Reading Toolbar */}
-        <div className="accessibility-toolbar">
-          <div className="control-group">
-            <button onClick={() => setFontSize(prev => Math.max(14, prev - 2))} className="btn-icon-control" title="הקטן גופן">A-</button>
-            <button onClick={() => setFontSize(prev => Math.min(28, prev + 2))} className="btn-icon-control" title="הגדל גופן">A+</button>
-          </div>
-
-          <div className="control-group">
-            <button 
-              onClick={() => setFontFamily("serif")} 
-              className={`btn-text-control ${fontFamily === "serif" ? "active" : ""}`}
-            >
-              Serif
-            </button>
-            <button 
-              onClick={() => setFontFamily("sans")} 
-              className={`btn-text-control ${fontFamily === "sans" ? "active" : ""}`}
-            >
-              Sans
-            </button>
-          </div>
-
-          <div className="control-group themes">
-            <button onClick={() => setTheme("cream")} className={`theme-dot cream ${theme === "cream" ? "active" : ""}`} title="נייר קרם" />
-            <button onClick={() => setTheme("white")} className={`theme-dot white ${theme === "white" ? "active" : ""}`} title="לבן" />
-            <button onClick={() => setTheme("dark")} className={`theme-dot dark ${theme === "dark" ? "active" : ""}`} title="לילה כהה" />
-          </div>
-
-          <div className="control-group">
-            <button
-              onClick={handleLinkNfcTag}
-              disabled={nfcLinking}
-              className="btn-text-control"
-              title={lang === "he" ? "קשר תג NFC פיזי לספר הזה, כדי שהסימנייה תזהה אותו לבד" : "Link a physical NFC tag to this book"}
-            >
-              🔖 {nfcLinking ? "..." : (lang === "he" ? "קשר תג NFC" : "Link NFC tag")}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Reading Canvas & Page Navigation Container */}
-      <div className="book-container" style={{ position: 'relative' }}>
-        
-        {/* Navigation Button Left */}
-        <button 
-          onClick={() => handlePageChange(currentPage - 1)} 
-          disabled={currentPage <= 1}
-          className="nav-page-btn"
-          title="עמוד קודם"
-        >
-          {lang === "he" ? "→" : "←"}
-        </button>
-
-        {/* Book Reading Viewport Canvas */}
-        <div 
-          className={`book-page-viewport ${isTurning ? "page-turning" : ""}`}
-          onMouseUp={handleTextSelection}
-          onTouchEnd={handleTextSelection}
-          style={{
-            backgroundColor: currentTheme.bg,
-            color: currentTheme.text,
-            borderLeftColor: currentTheme.border,
-            userSelect: 'text',
-            cursor: 'text'
-          }}
-        >
-          <div className="book-page">
-            <div className="page-decor-header" style={{ color: currentTheme.text, opacity: 0.6 }}>
-              <span className="decor-line" style={{ backgroundColor: currentTheme.text, opacity: 0.3 }}></span>
-              <span>{book.title}</span>
-              <span className="decor-line" style={{ backgroundColor: currentTheme.text, opacity: 0.3 }}></span>
-            </div>
-
-            {/* Page Content — Digital Text/Image (Uploaded Books), legacy whole-book image scan, or Fallback Demo */}
-            {pages && pages.length > 0 && pages[currentPage - 1]?.type === "image" ? (
-              /* IMAGE-TYPE PAGE (chapter divider / illustration — no selectable text) */
-              <div style={{
-                flex: 1,
-                minHeight: 0,
-                minWidth: 0,
-                width: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden'
-              }}>
-                <img
-                  src={pages[currentPage - 1].image}
-                  alt={pages[currentPage - 1].alt || `עמוד ${currentPage}`}
-                  style={{
-                    maxWidth: '100%',
-                    maxHeight: '100%',
-                    width: 'auto',
-                    height: 'auto',
-                    objectFit: 'contain',
-                    borderRadius: '4px',
-                    userSelect: 'none'
-                  }}
-                  draggable={false}
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                  }}
-                />
-                {pages[currentPage - 1].alt && (
-                  <p style={{ marginTop: '0.75rem', fontSize: '0.85rem', opacity: 0.7, fontStyle: 'italic' }}>
-                    {pages[currentPage - 1].alt}
-                  </p>
-                )}
-              </div>
-            ) : pages && pages.length > 0 && pages[currentPage - 1]?.type === "text" ? (
-              /* DYNAMIC UPLOADED DIGITAL BOOK TEXT */
-              <div
-                className="page-text-content"
-                style={{
-                  fontSize: `${fontSize}px`,
-                  fontFamily: fontFamily === "serif" ? "Lora, Georgia, serif" : "Assistant, sans-serif",
-                  whiteSpace: "pre-line",
-                  lineHeight: "1.8"
-                }}
-              >
-                {(() => {
-                  const pageContent = pages[currentPage - 1].text || "עמוד ריק.";
-                  const pageNotes = notes.filter(n => n.page === currentPage);
-                  // Split page text into paragraphs and highlight quotes
-                  const paragraphs = pageContent.split('\n\n');
-                  return paragraphs.map((para, idx) => (
-                    <p key={idx} style={{ marginBottom: "1.2rem" }}>
-                      {highlightText(para, pageNotes)}
-                    </p>
-                  ));
-                })()}
-              </div>
-            ) : book.pageImagePattern ? (
-              /* IMAGE-BASED BOOK (scanned pages fallback) */
-              <div style={{
-                flex: 1,
-                minHeight: 0,
-                minWidth: 0,
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden'
-              }}>
-                <img
-                  src={book.pageImagePattern.replace('{PAGE}', String(currentPage).padStart(3, '0'))}
-                  alt={`עמוד ${currentPage}`}
-                  style={{
-                    maxWidth: '100%',
-                    maxHeight: '100%',
-                    width: 'auto',
-                    height: 'auto',
-                    objectFit: 'contain',
-                    borderRadius: '4px',
-                    userSelect: 'none'
-                  }}
-                  draggable={false}
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                  }}
-                />
-              </div>
-            ) : (
-              /* TEXT-BASED DEMO FALLBACK */
-              <div 
-                className="page-text-content"
-                style={{
-                  fontSize: `${fontSize}px`,
-                  fontFamily: fontFamily === "serif" ? "Lora, Georgia, serif" : "Assistant, sans-serif"
-                }}
-              >
-                {(() => {
-                  const pageNotes = notes.filter(n => n.page === currentPage);
-                  return null;
-                })()}
-                {currentPage === 1 ? (
-                  <div>
-                    <h3 style={{ marginBottom: "1.5rem", fontFamily: "Lora, serif", fontSize: "1.8rem", textAlign: "center" }}>פרק ראשון</h3>
-                    <p style={{ marginBottom: "1rem" }}>
-                      {highlightText("\"הזמן איננו קו ישר,\" אמר הפרופסור והביט אל החלון הגדול שפנה לעבר העמק. \"הוא דומה יותר לדפים בספר. כשאתה נמצא בעמוד 45, עמוד 1 עדיין קיים ועמוד 250 כבר מחכה לך במקומו.\"", notes.filter(n => n.page === 1))}
-                    </p>
-                    <p>
-                      {highlightText("הרוח מחוץ לבניין לחשה דרך העצים. השעון על הקיר תקתק בקצב אטי וקצוב, כאילו מזכיר לכל הנוכחים בחדר כי כל מילה שנאמרת נחרתת בתוך דברי הימים של הזיכרון.", notes.filter(n => n.page === 1))}
-                    </p>
-                  </div>
-                ) : currentPage === 2 ? (
-                  <div>
-                    <h3 style={{ marginBottom: "1.5rem", fontFamily: "Lora, serif", fontSize: "1.8rem", textAlign: "center" }}>פרק שני</h3>
-                    <p style={{ marginBottom: "1rem" }}>
-                      {highlightText("המסע במעלה ההר החל בשעות הבוקר המוקדמות. הערפל הכבד שכיסה את העמק החל להתפוגג לאט, כשהוא חושף את שבילי האבן העתיקים שנסללו לפני מאות שנים.", notes.filter(n => n.page === 2))}
-                    </p>
-                    <p>
-                      {highlightText("\"כל צעד שאנחנו עושים מקרב אותנו אל הפסגה,\" אמרה אליסה בלחש. \"אבל היופי האמיתי הוא לא ההגעה, אלא הדרך שבה אנחנו מתבוננים בנוף מסביב.\"", notes.filter(n => n.page === 2))}
-                    </p>
-                  </div>
-                ) : (
-                  <div>
-                    <p style={{ marginBottom: "1rem" }}>
-                      {highlightText(`את נמצאת כעת בעמוד ${currentPage} מתוך ${book.totalPages}.`, notes.filter(n => n.page === currentPage))}
-                    </p>
-                    <p style={{ marginBottom: "1rem" }}>
-                      {highlightText("הסימנייה החכמה שלך מסנכרנת אוטומטית את התקדמות הקריאה בענן. בכל פעם שתשני עמוד בסימנייה הפיזית ותלחצי על \"Save\", העמוד יתעדכן כאן באופן מיידי.", notes.filter(n => n.page === currentPage))}
-                    </p>
-                    <blockquote style={{ borderRight: "3px solid var(--accent-sand)", paddingRight: "1rem", fontStyle: "italic", margin: "1.5rem 0", color: "var(--text-secondary)" }}>
-                      {highlightText("\"ספר טוב איננו מסתיים כשסוגרים את הכריכה; הוא ממשיך לחיות במחשבות של הקורא.\"", notes.filter(n => n.page === currentPage))}
-                    </blockquote>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="page-footer" style={{ color: currentTheme.text, opacity: 0.7 }}>
-              {(() => {
-                // Show the page number as PRINTED on the physical page (when we have
-                // that data) rather than our internal scan order — that's the number
-                // the reader can see in the book itself and match against the
-                // physical bookmark. Falls back to the scan index for legacy/demo
-                // books that don't carry printedPageNumber metadata.
-                const printed = pages?.[currentPage - 1]?.printedPageNumber;
-                const lastPrinted = pages?.length ? pages[pages.length - 1]?.printedPageNumber : null;
-                const displayTotal = lastPrinted || book.totalPages;
-                if (pages?.length && printed == null) {
-                  return <span>— עמוד ללא מספור בספר המקורי —</span>;
-                }
-                return <span>— עמוד {printed ?? currentPage} מתוך {displayTotal} —</span>;
-              })()}
-            </div>
-          </div>
-        </div>
-
-        {/* Navigation Button Right */}
-        <button 
-          onClick={() => handlePageChange(currentPage + 1)} 
-          disabled={currentPage >= book.totalPages}
-          className="nav-page-btn"
-          title="עמוד הבא"
-        >
-          {lang === "he" ? "←" : "→"}
-        </button>
-
-        {/* STEP 1: FLOATING SAVE BUTTON — text-based books only (Side on desktop, below viewport on mobile) */}
-        {!isImagePage && selectedText && !showBottomForm && (
-          <div 
-            className="quote-save-side-btn"
-            style={{
-              position: 'absolute',
-              right: lang === 'he' ? '-140px' : 'auto',
-              left: lang === 'he' ? 'auto' : '-140px',
-              top: '30%',
-              zIndex: 100
-            }}
-          >
-            <button 
-              onClick={handleSideButtonClick} 
-              className="btn btn-primary"
-              style={{
-                boxShadow: 'var(--shadow-md)',
-                padding: '0.75rem 1rem',
-                borderRadius: '12px',
-                animation: 'slideIn 0.25s ease-out',
-                whiteSpace: 'nowrap',
-                fontSize: '0.85rem'
-              }}
-            >
-              ✍️ שמור ציטוט
-            </button>
-          </div>
-        )}
-
-        {/* Mobile-only: save button below viewport when text is selected (text-based books only) */}
-        {!isImagePage && selectedText && !showBottomForm && (
-          <div 
-            className="quote-save-mobile-btn"
-            style={{
-              display: 'none',
-              justifyContent: 'center',
-              marginTop: '0.75rem',
-              zIndex: 100
-            }}
-          >
-            <button 
-              onClick={handleSideButtonClick} 
-              className="btn btn-primary"
-              style={{
-                boxShadow: 'var(--shadow-md)',
-                padding: '0.65rem 1.25rem',
-                borderRadius: '12px',
-                animation: 'slideIn 0.25s ease-out',
-                fontSize: '0.85rem',
-                width: '100%',
-                maxWidth: '320px'
-              }}
-            >
-              ✍️ שמור ציטוט
-            </button>
-          </div>
-        )}
-
-      </div>
-
-      {/* For image-type pages: persistent "Add Quote" button below the reader (no text to select).
-          Deliberately placed OUTSIDE .book-container (a flex row of nav-button/viewport/nav-button) —
-          it used to live inside that row with width:100%, which competed with the other flex
-          children for space and squeezed the reading window narrower on every image-type page. */}
-      {isImagePage && !showBottomForm && (
-        <div style={{
-          width: '100%',
-          display: 'flex',
-          justifyContent: 'center',
-          marginTop: '0.75rem'
-        }}>
+        <div className="ereader-toolbar-actions" ref={settingsRef}>
           <button
-            onClick={() => { setNewQuote(""); setShowBottomForm(true); }}
-            className="btn btn-primary btn-small"
-            style={{
-              boxShadow: 'var(--shadow-sm)',
-              borderRadius: '10px',
-              fontSize: '0.85rem',
-              padding: '0.55rem 1.25rem'
-            }}
+            onClick={() => setSettingsOpen(prev => !prev)}
+            className="ereader-icon-btn"
+            title={t.readerToolbar}
+            aria-label={t.readerToolbar}
           >
-            ✍️ הוסף ציטוט או הערה מעמוד זה
+            Aa
           </button>
-        </div>
-      )}
 
-      {/* STEP 2: BOTTOM FORM (Opens at the bottom of the page when side button is clicked) */}
-      {showBottomForm && (
-        <div 
-          className="add-book-form" 
-          style={{ 
-            maxWidth: '900px', 
-            margin: '2rem auto 0', 
-            padding: '1.5rem', 
-            borderLeft: '4px solid var(--accent-sand)',
-            animation: 'slideDown 0.3s ease-out'
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.2rem', color: 'var(--primary-slate)' }}>
-              ✍️ שמירת ציטוט מעמוד {currentPage}
-            </h3>
-            <button 
-              type="button" 
-              onClick={() => { setShowBottomForm(false); setSelectedText(""); }} 
-              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.1rem', color: 'var(--text-secondary)' }}
-            >
-              ✕ סגור
-            </button>
-          </div>
-
-          <form onSubmit={handleAddHighlightNote}>
-            <div className="form-group" style={{ marginBottom: '1rem' }}>
-              <label style={{ fontSize: '0.9rem', fontWeight: '600' }}>💬 הציטוט שסומן (מועתק אוטומטית)</label>
-              <textarea 
-                value={newQuote} 
-                onChange={(e) => setNewQuote(e.target.value)}
-                rows="3"
-                style={{
-                  background: "#fdfdfc",
-                  border: "1px solid var(--border-subtle)",
-                  borderRadius: "8px",
-                  padding: "0.75rem",
-                  fontFamily: "var(--font-serif)",
-                  fontSize: "1rem",
-                  fontStyle: "italic",
-                  lineHeight: "1.5"
-                }}
-              />
-            </div>
-
-            <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-              <label style={{ fontSize: '0.9rem', fontWeight: '600' }}>💡 המחשבה או ההערה האישית שלך (אופציונלי)</label>
-              <input 
-                type="text" 
-                value={newNoteText} 
-                onChange={(e) => setNewNoteText(e.target.value)} 
-                placeholder="הוסיפי מחשבה אישית שלמדת מהציטוט הזה..."
-                style={{
-                  background: "#fdfdfc",
-                  border: "1px solid var(--border-subtle)",
-                  borderRadius: "8px",
-                  padding: "0.75rem",
-                  fontFamily: "var(--font-sans)",
-                  fontSize: "0.95rem"
-                }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
-              <button 
-                type="button" 
-                onClick={() => { setShowBottomForm(false); setSelectedText(""); }} 
-                className="btn btn-secondary btn-small"
-              >
-                ביטול
-              </button>
-              
-              <button 
-                disabled={noteSaving} 
-                type="submit" 
-                className="btn btn-primary btn-small"
-              >
-                {noteSaving ? "שומר..." : t.saveNoteBtn}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Saved Notes Section at the Bottom of Page */}
-      {notes.length > 0 && (
-        <div style={{ maxWidth: '900px', margin: '2.5rem auto 0' }}>
-          <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.2rem', color: 'var(--primary-slate)', marginBottom: '1rem' }}>
-            📓 ציטוטים והערות שמורות בספר זה ({notes.length})
-          </h4>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: '1rem' }}>
-            {notes.map(n => (
-              <div key={n.noteId} style={{ background: '#fff', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '1rem', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                  <span className="badge badge-admin">עמוד {n.page}</span>
-                  <NoteMenu
-                    onGoToPage={() => handlePageChange(n.page)}
-                    onDelete={() => handleDeleteNote(n.noteId)}
-                  />
+          {settingsOpen && (
+            <div className="ereader-settings-panel">
+              <div className="ereader-settings-row">
+                <span className="ereader-settings-label">{t.fontScale}</span>
+                <div className="control-group">
+                  <button onClick={() => setFontSize(prev => Math.max(14, prev - 2))} className="btn-icon-control" title="הקטן גופן">A-</button>
+                  <button onClick={() => setFontSize(prev => Math.min(28, prev + 2))} className="btn-icon-control" title="הגדל גופן">A+</button>
                 </div>
-                {n.quote && <p style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', color: 'var(--primary-slate)', fontSize: '0.95rem', marginBottom: '0.35rem' }}>“{n.quote}”</p>}
-                {n.note && <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>💡 {n.note}</p>}
               </div>
-            ))}
-          </div>
-        </div>
-      )}
 
+              <div className="ereader-settings-row">
+                <span className="ereader-settings-label">{t.fontType}</span>
+                <div className="control-group">
+                  <button
+                    onClick={() => setFontFamily("serif")}
+                    className={`btn-text-control ${fontFamily === "serif" ? "active" : ""}`}
+                  >
+                    Serif
+                  </button>
+                  <button
+                    onClick={() => setFontFamily("sans")}
+                    className={`btn-text-control ${fontFamily === "sans" ? "active" : ""}`}
+                  >
+                    Sans
+                  </button>
+                </div>
+              </div>
+
+              <div className="ereader-settings-row">
+                <span className="ereader-settings-label">{t.theme}</span>
+                <div className="control-group themes">
+                  <button onClick={() => setTheme("cream")} className={`theme-dot cream ${theme === "cream" ? "active" : ""}`} title="נייר קרם" />
+                  <button onClick={() => setTheme("white")} className={`theme-dot white ${theme === "white" ? "active" : ""}`} title="לבן" />
+                  <button onClick={() => setTheme("dark")} className={`theme-dot dark ${theme === "dark" ? "active" : ""}`} title="לילה כהה" />
+                </div>
+              </div>
+
+              <button
+                onClick={handleLinkNfcTag}
+                disabled={nfcLinking}
+                className="btn-text-control"
+                style={{ width: '100%', marginTop: '0.35rem' }}
+                title={lang === "he" ? "קשר תג NFC פיזי לספר הזה, כדי שהסימנייה תזהה אותו לבד" : "Link a physical NFC tag to this book"}
+              >
+                🔖 {nfcLinking ? "..." : (lang === "he" ? "קשר תג NFC" : "Link NFC tag")}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Full-screen reading pane */}
+      <div
+        className={`ereader-page ${isTurning ? "page-turning" : ""}`}
+        style={{ backgroundColor: currentTheme.bg, color: currentTheme.text }}
+      >
+        {/* Edge tap-zones for page navigation */}
+        <button
+          onClick={() => handlePageChange(currentPage - 1)}
+          disabled={!canGoPrev}
+          className="ereader-tap-zone"
+          style={{ [prevSide]: 0 }}
+          title="עמוד קודם"
+          aria-label="עמוד קודם"
+        >
+          <span className="ereader-chevron">{prevSide === "left" ? "‹" : "›"}</span>
+        </button>
+        <button
+          onClick={() => handlePageChange(currentPage + 1)}
+          disabled={!canGoNext}
+          className="ereader-tap-zone"
+          style={{ [nextSide]: 0 }}
+          title="עמוד הבא"
+          aria-label="עמוד הבא"
+        >
+          <span className="ereader-chevron">{nextSide === "left" ? "‹" : "›"}</span>
+        </button>
+
+        <div className="ereader-content-column">
+          {/* Page Content — Digital Text/Image (Uploaded Books), legacy whole-book image scan, or Fallback Demo */}
+          {pages && pages.length > 0 && pages[currentPage - 1]?.type === "image" ? (
+            /* IMAGE-TYPE PAGE (chapter divider / illustration) */
+            <div className="ereader-image-page">
+              <img
+                src={pages[currentPage - 1].image}
+                alt={pages[currentPage - 1].alt || `עמוד ${currentPage}`}
+                draggable={false}
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+              {pages[currentPage - 1].alt && (
+                <p style={{ marginTop: '0.75rem', fontSize: '0.85rem', opacity: 0.7, fontStyle: 'italic' }}>
+                  {pages[currentPage - 1].alt}
+                </p>
+              )}
+            </div>
+          ) : pages && pages.length > 0 && pages[currentPage - 1]?.type === "text" ? (
+            /* DYNAMIC UPLOADED DIGITAL BOOK TEXT */
+            <div
+              className="ereader-text-content"
+              style={{
+                fontSize: `${fontSize}px`,
+                fontFamily: fontFamily === "serif" ? "Lora, Georgia, serif" : "Assistant, sans-serif"
+              }}
+            >
+              {(pages[currentPage - 1].text || "עמוד ריק.").split('\n\n').map((para, idx) => (
+                <p key={idx} style={{ marginBottom: "1.2rem" }}>{para}</p>
+              ))}
+            </div>
+          ) : book.pageImagePattern ? (
+            /* IMAGE-BASED BOOK (scanned pages fallback) */
+            <div className="ereader-image-page">
+              <img
+                src={book.pageImagePattern.replace('{PAGE}', String(currentPage).padStart(3, '0'))}
+                alt={`עמוד ${currentPage}`}
+                draggable={false}
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            </div>
+          ) : (
+            /* TEXT-BASED DEMO FALLBACK */
+            <div
+              className="ereader-text-content"
+              style={{
+                fontSize: `${fontSize}px`,
+                fontFamily: fontFamily === "serif" ? "Lora, Georgia, serif" : "Assistant, sans-serif"
+              }}
+            >
+              {currentPage === 1 ? (
+                <div>
+                  <h3 style={{ marginBottom: "1.5rem", fontFamily: "Lora, serif", fontSize: "1.8rem", textAlign: "center" }}>פרק ראשון</h3>
+                  <p style={{ marginBottom: "1rem" }}>
+                    "הזמן איננו קו ישר," אמר הפרופסור והביט אל החלון הגדול שפנה לעבר העמק. "הוא דומה יותר לדפים בספר. כשאתה נמצא בעמוד 45, עמוד 1 עדיין קיים ועמוד 250 כבר מחכה לך במקומו."
+                  </p>
+                  <p>
+                    הרוח מחוץ לבניין לחשה דרך העצים. השעון על הקיר תקתק בקצב אטי וקצוב, כאילו מזכיר לכל הנוכחים בחדר כי כל מילה שנאמרת נחרתת בתוך דברי הימים של הזיכרון.
+                  </p>
+                </div>
+              ) : currentPage === 2 ? (
+                <div>
+                  <h3 style={{ marginBottom: "1.5rem", fontFamily: "Lora, serif", fontSize: "1.8rem", textAlign: "center" }}>פרק שני</h3>
+                  <p style={{ marginBottom: "1rem" }}>
+                    המסע במעלה ההר החל בשעות הבוקר המוקדמות. הערפל הכבד שכיסה את העמק החל להתפוגג לאט, כשהוא חושף את שבילי האבן העתיקים שנסללו לפני מאות שנים.
+                  </p>
+                  <p>
+                    "כל צעד שאנחנו עושים מקרב אותנו אל הפסגה," אמרה אליסה בלחש. "אבל היופי האמיתי הוא לא ההגעה, אלא הדרך שבה אנחנו מתבוננים בנוף מסביב."
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <p style={{ marginBottom: "1rem" }}>
+                    את נמצאת כעת בעמוד {currentPage} מתוך {book.totalPages}.
+                  </p>
+                  <p style={{ marginBottom: "1rem" }}>
+                    הסימנייה החכמה שלך מסנכרנת אוטומטית את התקדמות הקריאה בענן. בכל פעם שתשני עמוד בסימנייה הפיזית ותלחצי על "Save", העמוד יתעדכן כאן באופן מיידי.
+                  </p>
+                  <blockquote style={{ borderRight: "3px solid var(--accent-sand)", paddingRight: "1rem", fontStyle: "italic", margin: "1.5rem 0", opacity: 0.75 }}>
+                    "ספר טוב איננו מסתיים כשסוגרים את הכריכה; הוא ממשיך לחיות במחשבות של הקורא."
+                  </blockquote>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="ereader-footer" style={{ color: currentTheme.text }}>
+          {(() => {
+            // Show the page number as PRINTED on the physical page (when we have
+            // that data) rather than our internal scan order — that's the number
+            // the reader can see in the book itself and match against the
+            // physical bookmark. Falls back to the scan index for legacy/demo
+            // books that don't carry printedPageNumber metadata.
+            const printed = pages?.[currentPage - 1]?.printedPageNumber;
+            const lastPrinted = pages?.length ? pages[pages.length - 1]?.printedPageNumber : null;
+            const displayTotal = lastPrinted || book.totalPages;
+            if (pages?.length && printed == null) {
+              return <span>עמוד ללא מספור בספר המקורי</span>;
+            }
+            return <span>{printed ?? currentPage} / {displayTotal}</span>;
+          })()}
+        </div>
+      </div>
     </div>
   );
 }
