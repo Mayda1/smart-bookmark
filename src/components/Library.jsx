@@ -1,34 +1,28 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
-import { 
-  getUserBooks, 
-  getCatalog, 
-  addCatalogBook, 
-  purchaseBook, 
+import {
+  getUserBooks,
+  getCatalog,
+  addCatalogBook,
+  purchaseBook,
   linkBookmarkDevice,
   getUserDevices,
-  getUserNotes,
-  addNote,
-  deleteNote,
   deleteCatalogBook,
   removeFromLibrary
 } from "../dbHelper";
 import { translations } from "../translations";
 import { useNavigate } from "react-router-dom";
-import NoteMenu from "./NoteMenu";
 
 export default function Library({ onOpenBook, showToast, refreshTrigger }) {
   const { currentUser, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState("library"); // 'library', 'store', or 'journal'
+  const [activeTab, setActiveTab] = useState("library"); // 'library' or 'store'
   const [books, setBooks] = useState([]);
   const [catalog, setCatalog] = useState([]);
   const [linkedDevices, setLinkedDevices] = useState([]);
-  const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdminForm, setShowAdminForm] = useState(false);
   const [showDeviceModal, setShowDeviceModal] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(null); // { message, confirmLabel, danger?, onConfirm }
-  const [showNoteForm, setShowNoteForm] = useState(false);
   const [storeSubTab, setStoreSubTab] = useState("recommendations"); // 'recommendations' or 'browse'
 
   // Language state
@@ -51,12 +45,6 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
   const [newBookPages, setNewBookPages] = useState([]);
   const [addLoading, setAddLoading] = useState(false);
 
-  const [noteBookId, setNoteBookId] = useState("");
-  const [newQuote, setNewQuote] = useState("");
-  const [newNoteText, setNewNoteText] = useState("");
-  const [newNotePage, setNewNotePage] = useState("1");
-  const [noteSaving, setNoteSaving] = useState(false);
-
   const [deviceIdInput, setDeviceIdInput] = useState("");
   const [deviceLoading, setDeviceLoading] = useState(false);
 
@@ -68,22 +56,19 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
     localStorage.setItem("app_lang", lang);
   }, [lang]);
 
-  // Load books, catalog, notes
+  // Load books, catalog, devices
   async function loadData(showNotification = false) {
     try {
       if (showNotification) setLoading(true);
       const tag = (label, p) => p.catch(e => { e.message = `[${label}] ${e.message}`; throw e; });
-      const [booksData, catalogData, devicesData, notesData] = await Promise.all([
+      const [booksData, catalogData, devicesData] = await Promise.all([
         tag("getUserBooks", getUserBooks(currentUser.uid)),
         tag("getCatalog", getCatalog()),
-        tag("getUserDevices", getUserDevices(currentUser.uid)),
-        tag("getUserNotes", getUserNotes(currentUser.uid))
+        tag("getUserDevices", getUserDevices(currentUser.uid))
       ]);
       setBooks(booksData);
       setCatalog(catalogData);
       setLinkedDevices(devicesData);
-      setNotes(notesData);
-      if (booksData.length > 0) setNoteBookId(booksData[0].bookId);
 
       // Raw database inspection (users/devices/nfcTags/etc) now happens
       // directly in the Firebase Console -- that's the real, reliable admin
@@ -234,43 +219,6 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
     }
   }
 
-  async function handleAddNoteFromJournal(e) {
-    e.preventDefault();
-    if (!newQuote.trim() && !newNoteText.trim()) return;
-
-    const targetBook = books.find(b => b.bookId === noteBookId) || { title: "ספר" };
-
-    try {
-      setNoteSaving(true);
-      const added = await addNote(currentUser.uid, {
-        bookId: noteBookId || (books[0] ? books[0].bookId : "BOOK_01"),
-        bookTitle: targetBook.title,
-        page: newNotePage,
-        quote: newQuote,
-        note: newNoteText
-      });
-      setNotes(prev => [added, ...prev]);
-      setNewQuote("");
-      setNewNoteText("");
-      setShowNoteForm(false);
-      showToast(lang === "he" ? "ההערה נשמרה במחברת שלך!" : "Note saved to your journal!", "success");
-    } catch (err) {
-      showToast(err.message || "Error saving note", "error");
-    } finally {
-      setNoteSaving(false);
-    }
-  }
-
-  async function handleDeleteNote(noteId) {
-    try {
-      await deleteNote(currentUser.uid, noteId);
-      setNotes(prev => prev.filter(n => n.noteId !== noteId));
-      showToast(lang === "he" ? "ההערה נמחקה" : "Note deleted", "info");
-    } catch (err) {
-      showToast("Error deleting note", "error");
-    }
-  }
-
   async function handleLinkDevice(e) {
     e.preventDefault();
     if (!deviceIdInput.trim()) return;
@@ -390,17 +338,11 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
         >
           📚 {t.myLibrary} ({books.length})
         </button>
-        <button 
-          onClick={() => setActiveTab("store")} 
+        <button
+          onClick={() => setActiveTab("store")}
           className={`tab-btn ${activeTab === "store" ? "active" : ""}`}
         >
           🛒 {t.bookstore} ({catalog.length})
-        </button>
-        <button 
-          onClick={() => setActiveTab("journal")} 
-          className={`tab-btn ${activeTab === "journal" ? "active" : ""}`}
-        >
-          {t.myJournal} ({notes.length})
         </button>
       </div>
 
@@ -692,8 +634,8 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
                   description: "מסע פנימי של גילוי עצמי דרך מדיטציה, שקט ושהייה בטבע.",
                   matchScore: 94,
                   reason: lang === "he"
-                    ? "מבוסס על הציטוטים שסימנת על זמן, מרחב ותודעה — ספר זה מרחיב את העולמות הפילוסופיים שמשכו אותך."
-                    : "Based on your highlighted quotes about time, space, and consciousness — this book deepens the philosophical themes you enjoy."
+                    ? "מבוסס על הספרים שקראת על זמן, מרחב ותודעה — ספר זה מרחיב את העולמות הפילוסופיים שמשכו אותך."
+                    : "Based on the books you've read about time, space, and consciousness — this book deepens the philosophical themes you enjoy."
                 },
                 {
                   id: "rec_2",
@@ -740,8 +682,8 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
                   description: "שירה ופרוזה על חיבור לטבע, מוזיקה ורגעי שלווה בעולם סוער.",
                   matchScore: 78,
                   reason: lang === "he"
-                    ? "הציטוטים שסימנת מגלים רגישות לשפה יפה ולתיאורי טבע — הספר הזה ידבר אל הלב שלך."
-                    : "Your highlighted quotes reveal a sensitivity to beautiful language and nature descriptions — this book will speak to your heart."
+                    ? "הספרים שקראת מגלים רגישות לשפה יפה ולתיאורי טבע — הספר הזה ידבר אל הלב שלך."
+                    : "The books in your library reveal a sensitivity to beautiful language and nature descriptions — this book will speak to your heart."
                 }
               ];
 
@@ -950,140 +892,6 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
                   </div>
                 );
               })}
-            </div>
-          )}
-        </section>
-      ) : activeTab === "journal" ? (
-        /* MY READING JOURNAL TAB */
-        <section className="section library-section">
-          <div className="section-header-flex">
-            <div className="section-header" style={{ marginBottom: 0 }}>
-              <h2>{t.notesTitle}</h2>
-              <p className="section-desc">{t.notesDesc}</p>
-            </div>
-            <button onClick={() => setShowNoteForm(!showNoteForm)} className="btn btn-primary">
-              {showNoteForm ? t.closeForm : t.addNoteBtn}
-            </button>
-          </div>
-
-          {/* Add Note Form */}
-          {showNoteForm && (
-            <form onSubmit={handleAddNoteFromJournal} className="add-book-form" style={{ marginTop: '1.5rem' }}>
-              <h3 style={{ fontFamily: 'var(--font-serif)', marginBottom: '1rem' }}>{t.addNoteBtn}</h3>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>ספר</label>
-                  <select 
-                    value={noteBookId} 
-                    onChange={(e) => setNoteBookId(e.target.value)}
-                    style={{
-                      background: "#fdfdfc",
-                      border: "1px solid var(--border-subtle)",
-                      borderRadius: "8px",
-                      padding: "0.75rem",
-                      fontFamily: "var(--font-sans)",
-                      fontSize: "0.95rem"
-                    }}
-                  >
-                    {books.map(b => (
-                      <option key={b.bookId} value={b.bookId}>{b.title}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group" style={{ maxWidth: '120px' }}>
-                  <label>{t.pageLabel}</label>
-                  <input 
-                    type="number" 
-                    min="1" 
-                    value={newNotePage} 
-                    onChange={(e) => setNewNotePage(e.target.value)} 
-                  />
-                </div>
-              </div>
-              <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label>💬 {t.quoteInput}</label>
-                <input type="text" value={newQuote} onChange={(e) => setNewQuote(e.target.value)} placeholder='לדוגמה: "הזמן איננו קו ישר..."' />
-              </div>
-              <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label>💡 {t.noteInput}</label>
-                <textarea 
-                  value={newNoteText} 
-                  onChange={(e) => setNewNoteText(e.target.value)} 
-                  rows="3"
-                  style={{
-                    background: "#fdfdfc",
-                    border: "1px solid var(--border-subtle)",
-                    borderRadius: "8px",
-                    padding: "0.75rem",
-                    fontFamily: "var(--font-sans)",
-                    fontSize: "0.95rem"
-                  }}
-                  placeholder="לדוגמה: מחשבה אישית שלמדתי מהעמוד..."
-                />
-              </div>
-              <button disabled={noteSaving} type="submit" className="btn btn-primary">
-                {noteSaving ? "..." : t.saveNoteBtn}
-              </button>
-            </form>
-          )}
-
-          {/* Notes Cards Grid */}
-          {notes.length === 0 ? (
-            <div className="empty-library-state" style={{ marginTop: '1.5rem' }}>
-              <p>{t.emptyNotes}</p>
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))', gap: '1rem', marginTop: '1.5rem' }}>
-              {notes.map(n => (
-                <div 
-                  key={n.noteId} 
-                  style={{
-                    background: 'var(--surface-card)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: '14px',
-                    padding: '1.35rem',
-                    boxShadow: 'var(--shadow-sm)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between'
-                  }}
-                >
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                      <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--primary-slate)' }}>
-                        {n.bookTitle}
-                      </span>
-                      <span className="badge badge-admin">
-                        {t.pageTag} {n.page}
-                      </span>
-                    </div>
-
-                    {n.quote && (
-                      <p style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', color: 'var(--primary-slate)', fontSize: '1.05rem', marginBottom: '0.6rem', lineHeight: '1.5' }}>
-                        “{n.quote}”
-                      </p>
-                    )}
-
-                    {n.note && (
-                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
-                        💡 {n.note}
-                      </p>
-                    )}
-                  </div>
-
-                  <div style={{ marginTop: '1rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-                      {new Date(n.createdAt).toLocaleDateString()}
-                    </span>
-                    <NoteMenu
-                      onGoToPage={() => {
-                        onOpenBook(n.bookId, n.page);
-                      }}
-                      onDelete={() => handleDeleteNote(n.noteId)}
-                    />
-                  </div>
-                </div>
-              ))}
             </div>
           )}
         </section>

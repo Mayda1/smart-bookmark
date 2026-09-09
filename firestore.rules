@@ -37,11 +37,6 @@ service cloud.firestore {
       match /library/{bookId} {
         allow read, write: if isOwner(uid) || isAdmin();
       }
-
-      // A user's saved quotes/highlights
-      match /notes/{noteId} {
-        allow read, write: if isOwner(uid) || isAdmin();
-      }
     }
 
     // Physical NFC sticker -> catalog book mapping. Self-service: any signed-in

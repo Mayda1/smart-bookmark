@@ -23,45 +23,6 @@ function toMillis(ts) {
 }
 
 // ==========================================
-// NOTES & HIGHLIGHTS — users/{uid}/notes/{noteId}
-// ==========================================
-
-export async function getUserNotes(userId, bookId = "") {
-  const notesRef = collection(db, "users", userId, "notes");
-  const snap = await getDocs(notesRef);
-  let notes = snap.docs.map(d => {
-    const data = d.data();
-    return { noteId: d.id, ...data, createdAt: new Date(toMillis(data.createdAt)).toISOString() };
-  });
-
-  if (bookId) {
-    notes = notes.filter(n => n.bookId === bookId);
-  }
-  notes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  return notes;
-}
-
-export async function addNote(userId, noteData) {
-  const notesRef = collection(db, "users", userId, "notes");
-  const payload = {
-    userId,
-    bookId: noteData.bookId,
-    bookTitle: noteData.bookTitle || "ספר",
-    page: parseInt(noteData.page) || 1,
-    quote: noteData.quote || "",
-    note: noteData.note || "",
-    createdAt: serverTimestamp()
-  };
-  const ref = await addDoc(notesRef, payload);
-  return { noteId: ref.id, ...payload, createdAt: new Date().toISOString() };
-}
-
-export async function deleteNote(userId, noteId) {
-  await deleteDoc(doc(db, "users", userId, "notes", noteId));
-  return { success: true, noteId };
-}
-
-// ==========================================
 // GLOBAL CATALOG (BOOKSTORE) — catalog/{bookId}, pages in catalog/{bookId}/pages/{n}
 // ==========================================
 

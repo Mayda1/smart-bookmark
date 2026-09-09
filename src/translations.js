@@ -3,7 +3,6 @@ export const translations = {
     appName: "Smart Bookmark",
     myLibrary: "הספרייה שלי",
     bookstore: "חנות הספרים",
-    myJournal: "📓 מחברת ההערות שלי",
     connectBookmark: "קשר סימנייה פיזית",
     refreshLibrary: "רענן ספרייה",
     logout: "התנתק 🚪",
@@ -39,17 +38,6 @@ export const translations = {
     fontType: "גופן",
     theme: "ערכת נושא",
     backToLibrary: "← חזרה לספרייה",
-    
-    // Notes & Highlights
-    notesTitle: "📓 מחברת הציטוטים וההערות שלי",
-    notesDesc: "כל הציטוטים, הרעיונות והמחשבות האישיות ששמרת לעצמך במהלך הקריאה.",
-    addNoteBtn: "✍️ שמור ציטוט / הערה חדשה",
-    quoteInput: "ציטוט או משפט מעורר השראה מתוך הספר",
-    noteInput: "המחשבה או הרעיון האישי שלך",
-    pageLabel: "עמוד",
-    saveNoteBtn: "שמור במחברת",
-    emptyNotes: "עדיין לא שמרת ציטוטים או הערות. את יכולה להוסיף ציטוטים והערות בזמן הקריאה או כאן במחברת!",
-    pageTag: "עמוד",
     deleteBtn: "מחק",
 
     // Store Sub-Tabs & Recommendations
@@ -66,7 +54,6 @@ export const translations = {
     appName: "Smart Bookmark",
     myLibrary: "My Library",
     bookstore: "Bookstore",
-    myJournal: "📓 My Reading Journal",
     connectBookmark: "Link Bookmark Device",
     refreshLibrary: "Refresh Library",
     logout: "Logout 🚪",
@@ -102,17 +89,6 @@ export const translations = {
     fontType: "Font Type",
     theme: "Theme",
     backToLibrary: "← Back to Library",
-    
-    // Notes & Highlights
-    notesTitle: "📓 My Reading Journal & Highlights",
-    notesDesc: "All quotes, ideas, and personal reflections saved while reading.",
-    addNoteBtn: "✍️ Save New Quote / Note",
-    quoteInput: "Inspiring quote or passage from the book",
-    noteInput: "Your personal thought or reflection",
-    pageLabel: "Page",
-    saveNoteBtn: "Save to Journal",
-    emptyNotes: "No saved quotes or notes yet. You can add notes while reading or directly here in your journal!",
-    pageTag: "Page",
     deleteBtn: "Delete",
 
     // Store Sub-Tabs & Recommendations
