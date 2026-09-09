@@ -517,12 +517,27 @@ export default function Library({ onOpenBook, showToast, refreshTrigger }) {
                   );
                 }
 
-                const current = book.currentPage || 1;
-                const total = book.totalPages;
+                // Two independent page-numbering systems exist for the same
+                // book (see the comment on getBookTotalPrintedPages in
+                // dbHelper.js): the raw sequence position in the uploaded
+                // pages (currentPage/totalPages), and the number actually
+                // PRINTED on the physical page (lastPrintedPage/
+                // totalPrintedPages) -- which is what the Reader page and the
+                // physical bookmark's own screen both display. Showing the
+                // library card's progress in the sequence system while the
+                // reader shows the printed system (e.g. "2 of 210" here vs
+                // "5 of 216" in the book) looked like a sync bug even though
+                // both numbers were individually correct -- so this now shows
+                // the same printed-page numbers everywhere, falling back to
+                // the sequence numbers only for books that don't have
+                // printed-page metadata at all.
+                const sequenceCurrent = book.currentPage || 1;
+                const current = book.lastPrintedPage || sequenceCurrent;
+                const total = book.totalPrintedPages || book.totalPages;
                 const pct = Math.round((current / total) * 100);
 
                 return (
-                  <div key={book.bookId} className="book-card" onClick={() => onOpenBook(book.bookId, current)}>
+                  <div key={book.bookId} className="book-card" onClick={() => onOpenBook(book.bookId, sequenceCurrent)}>
                     <div className="cover-wrapper">
                       <img src={book.cover} alt="Book Cover" className="book-cover" onError={(e) => {
                         e.target.src = "/assets/placeholder_cover.png";

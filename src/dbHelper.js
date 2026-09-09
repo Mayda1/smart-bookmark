@@ -9,6 +9,8 @@ import {
   deleteDoc,
   query,
   where,
+  orderBy,
+  limit,
   writeBatch,
   arrayUnion,
   serverTimestamp
@@ -175,6 +177,29 @@ export async function purchaseBook(userId, bookId) {
   return { bookId, currentPage: 1, ...catalogSnap.data() };
 }
 
+// The book's "current page" / "total pages" are ambiguous on their own --
+// there are two independent numbering systems in play (see updateBookProgress
+// below and api/index.js's resolvePrintedPage/getTotalPrintedPages): the raw
+// sequence position in the uploaded pages subcollection (currentPage /
+// catalog.totalPages, e.g. "2 of 210"), and the page number actually PRINTED
+// on the physical page (lastPrintedPage / the last page's printedPageNumber,
+// e.g. "5 of 216" for the exact same position -- front matter etc. can offset
+// the two). The Reader page and the physical bookmark's screen both already
+// show the printed number. This fetches just the last page doc (cheap --
+// limit(1), no full pages-subcollection read) so the Library page can show
+// the SAME number instead of the raw sequence one, which otherwise looks like
+// a sync bug to a reader even though both numbers were individually correct.
+async function getBookTotalPrintedPages(bookId, fallbackTotal) {
+  try {
+    const snap = await getDocs(query(collection(db, "catalog", bookId, "pages"), orderBy("pageNumber", "desc"), limit(1)));
+    if (snap.empty) return fallbackTotal;
+    const printed = snap.docs[0].data().printedPageNumber;
+    return (printed != null && printed >= 1) ? printed : fallbackTotal;
+  } catch (e) {
+    return fallbackTotal;
+  }
+}
+
 export async function getUserBooks(userId) {
   const librarySnap = await getDocs(collection(db, "users", userId, "library"));
   const libraryDocs = librarySnap.docs.map(d => ({ bookId: d.id, ...d.data() }));
@@ -187,7 +212,9 @@ export async function getUserBooks(userId) {
       // instead of silently producing NaN%/undefined in the UI.
       return { ...entry, catalogMissing: true, title: entry.title || "ספר שהוסר מהקטלוג", totalPages: entry.totalPages || null };
     }
-    return { ...catalogSnap.data(), ...entry, catalogMissing: false };
+    const catalogData = catalogSnap.data();
+    const totalPrintedPages = await getBookTotalPrintedPages(entry.bookId, catalogData.totalPages || null);
+    return { ...catalogData, ...entry, totalPrintedPages, catalogMissing: false };
   }));
 
   return books;
