@@ -263,14 +263,17 @@ export async function getUserDevices(userId) {
 }
 
 // No Bluetooth involved in NFC-tag linking anymore -- the bookmark just
-// always reports every scan to the server (see /api/bookmark/scan), and
-// when the tag isn't linked to a book yet, the server stashes it on the
-// device's own doc. The Reader page polls this (see linkNfcTagViaDevice in
-// Reader.jsx) instead of waiting for a BLE notification.
+// always reports every scan to the server (see /api/bookmark/scan), which
+// stashes it on the device's own doc as lastScannedTag -- for every scan,
+// not only tags that are still unlinked, so a tag that was already linked
+// to a different book (e.g. reused from earlier testing) can still be
+// re-linked from the website instead of getting stuck forever. The Reader
+// page polls this (see handleLinkNfcTag in Reader.jsx) instead of waiting
+// for a BLE notification.
 export async function getPendingNfcTag(deviceId) {
   const snap = await getDoc(doc(db, "devices", deviceId));
   if (!snap.exists()) return null;
-  const pending = snap.data().lastUnlinkedTag;
+  const pending = snap.data().lastScannedTag;
   if (!pending || !pending.tagUid) return null;
   return { tagUid: pending.tagUid, scannedAt: toMillis(pending.scannedAt) };
 }

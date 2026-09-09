@@ -311,7 +311,10 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
           title="עמוד קודם"
           aria-label="עמוד קודם"
         >
-          <span className="ereader-chevron">{prevSide === "left" ? "‹" : "›"}</span>
+          {/* Always the "previous" glyph -- position (prevSide) already
+              flips for RTL, so tying the glyph to screen side too made it
+              point the wrong way for Hebrew books (reported by user). */}
+          <span className="ereader-chevron">‹</span>
         </button>
         <button
           onClick={() => handlePageChange(currentPage + 1)}
@@ -321,7 +324,8 @@ export default function Reader({ bookId, initialPage, startPage, onBack, onClose
           title="עמוד הבא"
           aria-label="עמוד הבא"
         >
-          <span className="ereader-chevron">{nextSide === "left" ? "‹" : "›"}</span>
+          {/* Always the "next" glyph -- see note on the previous button. */}
+          <span className="ereader-chevron">›</span>
         </button>
 
         <div className="ereader-content-column">
